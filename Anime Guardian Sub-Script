@@ -1,0 +1,178 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+   Name = "Anime Guardian Sub-Script",
+   LoadingTitle = "Show Hub",
+   LoadingSubtitle = "Made by Kero :333",
+   ConfigurationSaving = {
+      Enabled = true,
+      FolderName = "AnimeGuardianSub",
+      FileName = "KeroConfig"
+   },
+   KeySystem = false,
+})
+
+-- =============================================
+-- VARIABLES & SERVICES
+-- =============================================
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+
+-- Host Settings
+local selectedStage = "City of Shattered Frost"
+local isFriendOnly = true
+local isAutoHosting = false
+
+-- Restart Settings
+local targetCoins = 1000
+local isAutoRestart = false
+
+-- =============================================
+-- TAB 1: LOBBY MANAGER
+-- =============================================
+local LobbyTab = Window:CreateTab("Lobby Manager", 4483362458)
+
+LobbyTab:CreateSection("Room Settings")
+
+LobbyTab:CreateDropdown({
+   Name = "Select Stage",
+   Options = {
+       "City of Shattered Frost", 
+       "Priestella", 
+       "Roswaal Mansion"
+   },
+   CurrentOption = {"City of Shattered Frost"},
+   MultipleOptions = false,
+   Flag = "StageDropdown", 
+   Callback = function(Option)
+      selectedStage = Option[1]
+   end,
+})
+
+LobbyTab:CreateToggle({
+   Name = "Friend Only",
+   CurrentValue = true,
+   Flag = "FriendOnlyToggle", 
+   Callback = function(Value)
+      isFriendOnly = Value
+   end,
+})
+
+LobbyTab:CreateSection("Automation")
+
+LobbyTab:CreateToggle({
+   Name = "Auto Host & Start",
+   CurrentValue = false,
+   Flag = "AutoHostToggle", 
+   Callback = function(Value)
+      isAutoHosting = Value
+   end,
+})
+
+-- =============================================
+-- TAB 2: AUTO RESTART
+-- =============================================
+local GameTab = Window:CreateTab("Auto Restart", 4483362458)
+
+GameTab:CreateSection("Restart Configuration")
+
+GameTab:CreateInput({
+   Name = "Target Coins",
+   PlaceholderText = "e.g., 2000",
+   RemoveTextAfterFocusLost = false,
+   Flag = "CoinInput", 
+   Callback = function(Text)
+       local num = tonumber(Text)
+       if num then
+           targetCoins = num
+       end
+   end,
+})
+
+local CoinLabel = GameTab:CreateLabel("Current Coins: Waiting...")
+
+GameTab:CreateToggle({
+   Name = "Enable Auto Restart",
+   CurrentValue = false,
+   Flag = "AutoRestartToggle", 
+   Callback = function(Value)
+      isAutoRestart = Value
+   end,
+})
+
+-- =============================================
+-- LOGIC FUNCTIONS
+-- =============================================
+
+local function getCurrentCoins()
+    if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
+       and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
+       and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("RewardFrame") 
+       and LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame:FindFirstChild("ChristmasCoin") then
+        
+        local textLabel = LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame.ChristmasCoin
+        local text = textLabel.Text
+        return tonumber(string.match(text, "%d+")) or 0
+    end
+    return 0
+end
+
+-- Auto Host Loop
+task.spawn(function()
+    while true do
+        if isAutoHosting then
+            local RoomFunction = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("RoomFunction")
+            
+            if RoomFunction then
+                pcall(function()
+                    local args = {
+                        [1] = "host",
+                        [2] = {
+                            ["stage"] = selectedStage,
+                            ["friendOnly"] = isFriendOnly
+                        }
+                    }
+                    RoomFunction:InvokeServer(unpack(args))
+                    task.wait(1.5)
+                    RoomFunction:InvokeServer("start")
+                end)
+                task.wait(3)
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+-- Auto Restart Loop
+task.spawn(function()
+    while true do
+        local current = getCurrentCoins()
+        CoinLabel:Set("Current Coins: " .. tostring(current) .. " / Target: " .. tostring(targetCoins))
+
+        if isAutoRestart then
+            local MiscAction = ReplicatedStorage:FindFirstChild("Remotes") 
+                               and ReplicatedStorage.Remotes:FindFirstChild("Misc") 
+                               and ReplicatedStorage.Remotes.Misc:FindFirstChild("Action")
+
+            if MiscAction and current >= targetCoins then
+                Rayfield:Notify({
+                    Title = "Target Reached",
+                    Content = "Coins: " .. current .. ". Restarting now...",
+                    Duration = 3,
+                    Image = 4483362458,
+                })
+                
+                pcall(function()
+                    local args = { [1] = "Restart" }
+                    MiscAction:FireServer(unpack(args))
+                end)
+                
+                task.wait(10)
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+Rayfield:LoadConfiguration()
