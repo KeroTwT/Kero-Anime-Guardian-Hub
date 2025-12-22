@@ -6,7 +6,7 @@ local Window = Rayfield:CreateWindow({
    LoadingSubtitle = "Made by Kero :333",
    ConfigurationSaving = {
       Enabled = true,
-      FolderName = "AnimeGuardianSub_V4", -- Đổi folder mới để tránh xung đột config cũ
+      FolderName = "AnimeGuardianSub_V4",
       FileName = "KeroConfig"
    },
    KeySystem = false,
@@ -26,7 +26,7 @@ local isAutoHosting = false
 
 -- Restart Variables
 local targetCoins = 0
-local targetWave = 0 -- Biến mới cho Wave
+local targetWave = 0
 local isAutoRestart = false
 
 -- Modifier Variables
@@ -100,12 +100,11 @@ local function getModifierPrice(modName)
 end
 
 local function getCurrentWave()
-    -- Path: LocalPlayer.PlayerGui.GUI.BaseFrame.Wave
     if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
        and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
        and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("Wave") then
         
-        local waveText = LocalPlayer.PlayerGui.GUI.BaseFrame.Wave.Text -- "Wave 30"
+        local waveText = LocalPlayer.PlayerGui.GUI.BaseFrame.Wave.Text
         return cleanNumber(waveText)
     end
     return 0
@@ -123,7 +122,7 @@ local StageDropdown = LobbyTab:CreateDropdown({
    Options = getAvailableStages(), 
    CurrentOption = {defaultStages[1]},
    MultipleOptions = false,
-   Flag = "Lobby_Stage", -- Flag duy nhất
+   Flag = "Lobby_Stage",
    Callback = function(Option)
       selectedStage = Option[1]
    end,
@@ -236,7 +235,7 @@ GameTab:CreateInput({
 })
 
 GameTab:CreateInput({
-   Name = "Target Wave", -- Tính năng mới
+   Name = "Target Wave",
    PlaceholderText = "0 to disable",
    RemoveTextAfterFocusLost = false,
    Flag = "Restart_Wave", 
@@ -276,7 +275,6 @@ end)
 -- 2. Auto Restart Loop (Coin OR Wave)
 task.spawn(function()
     while true do
-        -- Lấy số liệu
         local currentCoin = 0
         if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
            and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
@@ -287,7 +285,6 @@ task.spawn(function()
         
         local currentWave = getCurrentWave()
         
-        -- Cập nhật Label
         StatusLabel:Set("Coin: " .. currentCoin .. " / " .. targetCoins .. " | Wave: " .. currentWave .. " / " .. targetWave)
 
         if isAutoRestart then
@@ -298,13 +295,11 @@ task.spawn(function()
             if MiscAction then
                 local shouldRestart = false
                 
-                -- Điều kiện 1: Đủ Coin (Nếu người dùng có đặt Target Coin > 0)
                 if targetCoins > 0 and currentCoin >= targetCoins then
                     Rayfield:Notify({Title = "Restarting", Content = "Target Coins Reached!", Duration = 3})
                     shouldRestart = true
                 end
                 
-                -- Điều kiện 2: Đủ Wave (Nếu người dùng có đặt Target Wave > 0)
                 if targetWave > 0 and currentWave >= targetWave then
                     Rayfield:Notify({Title = "Restarting", Content = "Target Wave Reached!", Duration = 3})
                     shouldRestart = true
@@ -312,7 +307,7 @@ task.spawn(function()
 
                 if shouldRestart then
                     pcall(function() MiscAction:FireServer("Restart") end)
-                    task.wait(10) -- Đợi reload
+                    task.wait(10)
                 end
             end
         end
