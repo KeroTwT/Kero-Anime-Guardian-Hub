@@ -7,7 +7,7 @@ local Window = Rayfield:CreateWindow({
    ConfigurationSaving = {
       Enabled = true,
       FolderName = "AnimeGuardianSub",
-      FileName = "KeroConfig"
+      FileName = "KeroConfig_Final"
    },
    KeySystem = false,
 })
@@ -19,14 +19,25 @@ local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local LocalPlayer = Players.LocalPlayer
 
--- Host Settings
+-- Lobby Variables
 local selectedStage = "City of Shattered Frost"
 local isFriendOnly = true
 local isAutoHosting = false
 
--- Restart Settings
+-- Restart Variables
 local targetCoins = 1000
 local isAutoRestart = false
+
+-- Modifier Variables
+local isAutoBuy = false
+-- Variables to store user choices for each slot
+local prioritySlot1 = "Golden Tribute"
+local prioritySlot2 = "Power Surge"
+local prioritySlot3 = "Saiya"
+local prioritySlot4 = "Time Snare"
+
+-- List of modifier names for the dropdown
+local modifierList = {"None", "Golden Tribute", "Power Surge", "Saiya", "Time Snare"}
 
 -- =============================================
 -- TAB 1: LOBBY MANAGER
@@ -71,14 +82,66 @@ LobbyTab:CreateToggle({
 })
 
 -- =============================================
--- TAB 2: AUTO RESTART
+-- TAB 2: IN-GAME MANAGER
 -- =============================================
-local GameTab = Window:CreateTab("Auto Restart", 4483362458)
+local GameTab = Window:CreateTab("In-Game Manager", 4483362458)
 
-GameTab:CreateSection("Restart Configuration")
+-- --- SECTION: MODIFIER SHOP ---
+GameTab:CreateSection("Modifier Shop (Priority System)")
+
+GameTab:CreateToggle({
+   Name = "Enable Auto Buy Modifiers",
+   CurrentValue = false,
+   Flag = "AutoBuyMasterToggle",
+   Callback = function(Value)
+      isAutoBuy = Value
+   end,
+})
+
+-- Priority Slots
+GameTab:CreateLabel("Setup Priority Order (Top to Bottom):")
+
+GameTab:CreateDropdown({
+   Name = "Priority 1 (Highest)",
+   Options = modifierList,
+   CurrentOption = {"Golden Tribute"},
+   MultipleOptions = false,
+   Flag = "Slot1",
+   Callback = function(Option) prioritySlot1 = Option[1] end,
+})
+
+GameTab:CreateDropdown({
+   Name = "Priority 2",
+   Options = modifierList,
+   CurrentOption = {"Power Surge"},
+   MultipleOptions = false,
+   Flag = "Slot2",
+   Callback = function(Option) prioritySlot2 = Option[1] end,
+})
+
+GameTab:CreateDropdown({
+   Name = "Priority 3",
+   Options = modifierList,
+   CurrentOption = {"Saiya"},
+   MultipleOptions = false,
+   Flag = "Slot3",
+   Callback = function(Option) prioritySlot3 = Option[1] end,
+})
+
+GameTab:CreateDropdown({
+   Name = "Priority 4 (Lowest)",
+   Options = modifierList,
+   CurrentOption = {"Time Snare"},
+   MultipleOptions = false,
+   Flag = "Slot4",
+   Callback = function(Option) prioritySlot4 = Option[1] end,
+})
+
+-- --- SECTION: AUTO RESTART ---
+GameTab:CreateSection("Auto Restart")
 
 GameTab:CreateInput({
-   Name = "Target Coins",
+   Name = "Target Coins to Restart",
    PlaceholderText = "e.g., 2000",
    RemoveTextAfterFocusLost = false,
    Flag = "CoinInput", 
@@ -105,33 +168,65 @@ GameTab:CreateToggle({
 -- LOGIC FUNCTIONS
 -- =============================================
 
-local function getCurrentCoins()
-    if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
-       and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
-       and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("RewardFrame") 
-       and LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame:FindFirstChild("ChristmasCoin") then
-        
-        local textLabel = LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame.ChristmasCoin
-        local text = textLabel.Text
-        return tonumber(string.match(text, "%d+")) or 0
+-- Function to clean numbers (remove commas, text)
+local function cleanNumber(str)
+    if not str then return 0 end
+    local cleanStr = string.gsub(str, "%D", "") 
+    return tonumber(cleanStr) or 0
+end
+
+-- Get User's current money
+local function getMyMoney()
+    local mainGui = LocalPlayer.PlayerGui:FindFirstChild("Main")
+    if mainGui then
+        local unitBar = mainGui:FindFirstChild("UnitBar")
+        if unitBar then
+            local dataFrame = unitBar:FindFirstChild("DataFrame")
+            if dataFrame then
+                local coinsLabel = dataFrame:FindFirstChild("Coins")
+                if coinsLabel then
+                    return cleanNumber(coinsLabel.Text)
+                end
+            end
+        end
     end
     return 0
 end
 
--- Auto Host Loop
+-- Get Price of a Modifier
+local function getModifierPrice(modName)
+    local npcShop = LocalPlayer.PlayerGui:FindFirstChild("Npc_Shop")
+    if npcShop then
+        local modShop = npcShop:FindFirstChild("ModifierShop")
+        if modShop then
+            local inset = modShop:FindFirstChild("Inset")
+            if inset then
+                local scroll = inset:FindFirstChild("ScrollingFrame")
+                if scroll then
+                    local item = scroll:FindFirstChild(modName)
+                    if item then
+                        local priceLabel = item:FindFirstChild("PriceText")
+                        if priceLabel then
+                            return cleanNumber(priceLabel.Text)
+                        end
+                    end
+                end
+            end
+        end
+    end
+    return 999999999 -- Return high value if not found to prevent errors
+end
+
+-- 1. Auto Host Loop
 task.spawn(function()
     while true do
         if isAutoHosting then
             local RoomFunction = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("RoomFunction")
-            
             if RoomFunction then
                 pcall(function()
                     local args = {
                         [1] = "host",
-                        [2] = {
-                            ["stage"] = selectedStage,
-                            ["friendOnly"] = isFriendOnly
-                        }
+                        [2] = { ["stage"] = selectedStage, ["friendOnly"] = isFriendOnly }
                     }
                     RoomFunction:InvokeServer(unpack(args))
                     task.wait(1.5)
@@ -144,31 +239,63 @@ task.spawn(function()
     end
 end)
 
--- Auto Restart Loop
+-- 2. Auto Restart Loop
 task.spawn(function()
     while true do
-        local current = getCurrentCoins()
-        CoinLabel:Set("Current Coins: " .. tostring(current) .. " / Target: " .. tostring(targetCoins))
+        local rewardCoin = 0
+        if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
+           and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
+           and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("RewardFrame") 
+           and LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame:FindFirstChild("ChristmasCoin") then
+            
+            rewardCoin = cleanNumber(LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame.ChristmasCoin.Text)
+        end
+        
+        CoinLabel:Set("Current Coins (Reward): " .. tostring(rewardCoin) .. " / Target: " .. tostring(targetCoins))
 
         if isAutoRestart then
             local MiscAction = ReplicatedStorage:FindFirstChild("Remotes") 
                                and ReplicatedStorage.Remotes:FindFirstChild("Misc") 
                                and ReplicatedStorage.Remotes.Misc:FindFirstChild("Action")
 
-            if MiscAction and current >= targetCoins then
-                Rayfield:Notify({
-                    Title = "Target Reached",
-                    Content = "Coins: " .. current .. ". Restarting now...",
-                    Duration = 3,
-                    Image = 4483362458,
-                })
-                
-                pcall(function()
-                    local args = { [1] = "Restart" }
-                    MiscAction:FireServer(unpack(args))
-                end)
-                
+            if MiscAction and rewardCoin >= targetCoins then
+                Rayfield:Notify({Title = "Target Reached", Content = "Restarting...", Duration = 3})
+                pcall(function() MiscAction:FireServer("Restart") end)
                 task.wait(10)
+            end
+        end
+        task.wait(0.5)
+    end
+end)
+
+-- 3. Auto Buy Modifier Loop (Priority System)
+task.spawn(function()
+    while true do
+        if isAutoBuy then
+            local myMoney = getMyMoney()
+            local ModifierShop = ReplicatedStorage:FindFirstChild("ModifierShop")
+            
+            -- Priority Queue
+            local currentQueue = {prioritySlot1, prioritySlot2, prioritySlot3, prioritySlot4}
+
+            if ModifierShop then
+                for _, modName in ipairs(currentQueue) do
+                    -- Check if slot is not "None"
+                    if modName and modName ~= "None" then
+                        local price = getModifierPrice(modName)
+                        
+                        -- Smart Buy Logic
+                        if myMoney >= price then
+                            pcall(function()
+                                ModifierShop:InvokeServer(modName)
+                                myMoney = myMoney - price -- Deduct virtual money to prevent spam
+                            end)
+                            task.wait(0.2)
+                        else
+                            -- If cannot afford Priority 1, it will loop to Priority 2 automatically
+                        end
+                    end
+                end
             end
         end
         task.wait(0.5)
