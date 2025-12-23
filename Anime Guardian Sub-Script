@@ -44,6 +44,7 @@ local openCapsuleAmount = 1
 
 -- Modifier Variables
 local isAutoBuy = false
+local targetBuyWave = 0
 local prioritySlot1 = "Golden Tribute"
 local prioritySlot2 = "Power Surge"
 local prioritySlot3 = "Saiya"
@@ -184,6 +185,16 @@ GameTab:CreateToggle({
    Flag = "Shop_AutoBuy",
    Callback = function(Value)
       isAutoBuy = Value
+   end,
+})
+
+GameTab:CreateInput({
+   Name = "Min Wave to Buy",
+   PlaceholderText = "0 to disable (Buy instantly)",
+   RemoveTextAfterFocusLost = false,
+   Flag = "Shop_MinWave",
+   Callback = function(Text)
+       targetBuyWave = tonumber(Text) or 0
    end,
 })
 
@@ -421,24 +432,28 @@ task.spawn(function()
     end
 end)
 
--- 3. Auto Buy Modifier Loop
+-- 3. Auto Buy Modifier Loop (CHECK WAVE)
 task.spawn(function()
     while true do
         if isAutoBuy then
-            local myMoney = getMyMoney()
-            local ModifierShop = ReplicatedStorage:FindFirstChild("ModifierShop")
-            local currentQueue = {prioritySlot1, prioritySlot2, prioritySlot3, prioritySlot4}
+            local currentWave = getCurrentWave()
+            
+            if currentWave >= targetBuyWave then
+                local myMoney = getMyMoney()
+                local ModifierShop = ReplicatedStorage:FindFirstChild("ModifierShop")
+                local currentQueue = {prioritySlot1, prioritySlot2, prioritySlot3, prioritySlot4}
 
-            if ModifierShop then
-                for _, modName in ipairs(currentQueue) do
-                    if modName and modName ~= "None" then
-                        local price = getModifierPrice(modName)
-                        if myMoney >= price then
-                            pcall(function()
-                                ModifierShop:InvokeServer(modName)
-                                myMoney = myMoney - price 
-                            end)
-                            task.wait(0.2)
+                if ModifierShop then
+                    for _, modName in ipairs(currentQueue) do
+                        if modName and modName ~= "None" then
+                            local price = getModifierPrice(modName)
+                            if myMoney >= price then
+                                pcall(function()
+                                    ModifierShop:InvokeServer(modName)
+                                    myMoney = myMoney - price 
+                                end)
+                                task.wait(0.2)
+                            end
                         end
                     end
                 end
