@@ -24,6 +24,7 @@ local LocalPlayer = Players.LocalPlayer
 local selectedStage = "City of Shattered Frost" 
 local isFriendOnly = true
 local isAutoHosting = false
+local hostDelay = 0
 
 -- Restart Variables
 local targetCoins = 0
@@ -168,6 +169,18 @@ LobbyTab:CreateToggle({
    Flag = "Lobby_AutoHost", 
    Callback = function(Value)
       isAutoHosting = Value
+   end,
+})
+
+LobbyTab:CreateSlider({
+   Name = "Start Delay (Seconds)",
+   Range = {0, 30},
+   Increment = 1,
+   Suffix = "s",
+   CurrentValue = 0,
+   Flag = "Lobby_StartDelay", 
+   Callback = function(Value)
+      hostDelay = Value
    end,
 })
 
@@ -379,7 +392,7 @@ task.spawn(function()
                         [2] = { ["stage"] = selectedStage, ["friendOnly"] = isFriendOnly }
                     }
                     RoomFunction:InvokeServer(unpack(args))
-                    task.wait(1.5)
+                    task.wait(1.5 + hostDelay)
                     RoomFunction:InvokeServer("start")
                 end)
                 task.wait(3)
