@@ -1,7 +1,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Anime Guardian Sub-Script | Kero :333",
+   Name = "Anime Guardian Sub-Script",
    LoadingTitle = "MOEWTIE",
    LoadingSubtitle = "Made by Kero :333",
    ConfigurationSaving = {
@@ -21,10 +21,16 @@ local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 
 -- Lobby Variables
-local selectedStage = "City of Shattered Frost" 
+local defaultStages = {"City of Shattered Frost", "Priestella", "Roswaal Mansion"}
+local selectedStage = defaultStages[1]
 local isFriendOnly = true
 local isAutoHosting = false
 local hostDelay = 0
+
+-- Ancient Floor Variables
+local isAutoAncientMax = false
+local isAutoAncientCustom = false
+local customAncientFloor = 1
 
 -- Restart Variables
 local targetCoins = 0
@@ -42,6 +48,10 @@ local isAutoBuyCapsule = false
 local buyCapsuleAmount = 1
 local isAutoOpenCapsule = false
 local openCapsuleAmount = 1
+local isAutoBuyChristmas = false
+local buyChristmasAmount = 1
+local isAutoOpenChristmas = false
+local openChristmasAmount = 1
 
 -- Modifier Variables
 local isAutoBuy = false
@@ -50,15 +60,11 @@ local prioritySlot1 = "Golden Tribute"
 local prioritySlot2 = "Power Surge"
 local prioritySlot3 = "Saiya"
 local prioritySlot4 = "Time Snare"
-
--- Defaults
 local modifierList = {"None", "Golden Tribute", "Power Surge", "Saiya", "Time Snare"}
-local defaultStages = {"City of Shattered Frost", "Priestella", "Roswaal Mansion"}
 
 -- =============================================
 -- HELPER FUNCTIONS
 -- =============================================
-
 local function getAvailableStages()
     local list = {}
     local stagesFolder = LocalPlayer:WaitForChild("Stages", 3) 
@@ -118,11 +124,24 @@ local function getCurrentWave()
     if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
        and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
        and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("Wave") then
-        
         local waveText = LocalPlayer.PlayerGui.GUI.BaseFrame.Wave.Text
         return cleanNumber(waveText)
     end
     return 0
+end
+
+local function getAncientMaxFloor()
+    local stages = LocalPlayer:FindFirstChild("Stages")
+    if stages then
+        local ancientFolder = stages:FindFirstChild("The Lost Ancient World")
+        if ancientFolder then
+            local floorVal = ancientFolder:FindFirstChild("Floor")
+            if floorVal then
+                return tonumber(floorVal.Value) or 1
+            end
+        end
+    end
+    return 1
 end
 
 -- =============================================
@@ -130,12 +149,12 @@ end
 -- =============================================
 local LobbyTab = Window:CreateTab("Lobby Manager", 4483362458)
 
-LobbyTab:CreateSection("Room Settings")
+LobbyTab:CreateSection("Normal Room Settings")
 
 local StageDropdown = LobbyTab:CreateDropdown({
    Name = "Select Stage",
-   Options = getAvailableStages(), 
-   CurrentOption = {defaultStages[1]},
+   Options = getAvailableStages(),
+   CurrentOption = {selectedStage},
    MultipleOptions = false,
    Flag = "Lobby_Stage",
    Callback = function(Option)
@@ -148,28 +167,24 @@ LobbyTab:CreateButton({
    Callback = function()
        local newStages = getAvailableStages()
        StageDropdown:Refresh(newStages, true)
-       Rayfield:Notify({Title = "Updated", Content = "Found " .. #newStages .. " stages.", Duration = 2})
+       Rayfield:Notify({Title="Updated", Content="Found "..#newStages.." stages.", Duration=2})
    end,
 })
 
 LobbyTab:CreateToggle({
    Name = "Friend Only",
    CurrentValue = true,
-   Flag = "Lobby_FriendOnly", 
-   Callback = function(Value)
-      isFriendOnly = Value
-   end,
+   Flag = "Lobby_FriendOnly",
+   Callback = function(Value) isFriendOnly = Value end,
 })
 
-LobbyTab:CreateSection("Automation")
+LobbyTab:CreateSection("Automation (Normal)")
 
 LobbyTab:CreateToggle({
    Name = "Auto Host",
    CurrentValue = false,
-   Flag = "Lobby_AutoHost", 
-   Callback = function(Value)
-      isAutoHosting = Value
-   end,
+   Flag = "Lobby_AutoHost",
+   Callback = function(Value) isAutoHosting = Value end,
 })
 
 LobbyTab:CreateSlider({
@@ -179,77 +194,66 @@ LobbyTab:CreateSlider({
    Suffix = "s",
    CurrentValue = 0,
    Flag = "Lobby_StartDelay", 
-   Callback = function(Value)
-      hostDelay = Value
+   Callback = function(Value) hostDelay = Value end,
+})
+
+LobbyTab:CreateSection("Ancient Floor (The Lost Ancient World)")
+
+LobbyTab:CreateToggle({
+   Name = "Auto Host Ancient (Max Floor)",
+   CurrentValue = false,
+   Flag = "Lobby_AutoAncientMax",
+   Callback = function(Value) isAutoAncientMax = Value end,
+})
+
+LobbyTab:CreateLabel("Custom Ancient Floor | USE AT YOUR OWN RISK")
+
+LobbyTab:CreateInput({
+   Name = "Put Ur Floor Number",
+   PlaceholderText = "e.g. 4000",
+   RemoveTextAfterFocusLost = false,
+   Flag = "Lobby_CustomFloorNum",
+   Callback = function(Text)
+       customAncientFloor = tonumber(Text) or 1
    end,
 })
+
+LobbyTab:CreateToggle({
+   Name = "Auto Host Custom Floor",
+   CurrentValue = false,
+   Flag = "Lobby_AutoAncientCustom",
+   Callback = function(Value) isAutoAncientCustom = Value end,
+})
+
 
 -- =============================================
 -- TAB 2: IN-GAME MANAGER
 -- =============================================
 local GameTab = Window:CreateTab("In-Game Manager", 4483362458)
 
--- --- SECTION: MODIFIER SHOP ---
 GameTab:CreateSection("Modifier Shop")
 
 GameTab:CreateToggle({
    Name = "Auto Buy Modifiers",
    CurrentValue = false,
    Flag = "Shop_AutoBuy",
-   Callback = function(Value)
-      isAutoBuy = Value
-   end,
+   Callback = function(Value) isAutoBuy = Value end,
 })
 
 GameTab:CreateInput({
    Name = "Min Wave to Buy",
-   PlaceholderText = "0 to disable (Buy instantly)",
+   PlaceholderText = "0 to disable",
    RemoveTextAfterFocusLost = false,
    Flag = "Shop_MinWave",
-   Callback = function(Text)
-       targetBuyWave = tonumber(Text) or 0
-   end,
+   Callback = function(Text) targetBuyWave = tonumber(Text) or 0 end,
 })
 
 GameTab:CreateLabel("Priority Order:")
+GameTab:CreateDropdown({Name="Priority 1", Options=modifierList, CurrentOption={"Golden Tribute"}, MultipleOptions=false, Flag="P1", Callback=function(O) prioritySlot1=O[1] end})
+GameTab:CreateDropdown({Name="Priority 2", Options=modifierList, CurrentOption={"Power Surge"}, MultipleOptions=false, Flag="P2", Callback=function(O) prioritySlot2=O[1] end})
+GameTab:CreateDropdown({Name="Priority 3", Options=modifierList, CurrentOption={"Saiya"}, MultipleOptions=false, Flag="P3", Callback=function(O) prioritySlot3=O[1] end})
+GameTab:CreateDropdown({Name="Priority 4", Options=modifierList, CurrentOption={"Time Snare"}, MultipleOptions=false, Flag="P4", Callback=function(O) prioritySlot4=O[1] end})
 
-GameTab:CreateDropdown({
-   Name = "Priority 1",
-   Options = modifierList,
-   CurrentOption = {"Golden Tribute"},
-   MultipleOptions = false,
-   Flag = "Shop_Slot1",
-   Callback = function(Option) prioritySlot1 = Option[1] end,
-})
-
-GameTab:CreateDropdown({
-   Name = "Priority 2",
-   Options = modifierList,
-   CurrentOption = {"Power Surge"},
-   MultipleOptions = false,
-   Flag = "Shop_Slot2",
-   Callback = function(Option) prioritySlot2 = Option[1] end,
-})
-
-GameTab:CreateDropdown({
-   Name = "Priority 3",
-   Options = modifierList,
-   CurrentOption = {"Saiya"},
-   MultipleOptions = false,
-   Flag = "Shop_Slot3",
-   Callback = function(Option) prioritySlot3 = Option[1] end,
-})
-
-GameTab:CreateDropdown({
-   Name = "Priority 4",
-   Options = modifierList,
-   CurrentOption = {"Time Snare"},
-   MultipleOptions = false,
-   Flag = "Shop_Slot4",
-   Callback = function(Option) prioritySlot4 = Option[1] end,
-})
-
--- --- SECTION: AUTO RESTART ---
 GameTab:CreateSection("Auto Restart")
 
 GameTab:CreateToggle({
@@ -283,48 +287,13 @@ GameTab:CreateInput({
 
 local StatusLabel = GameTab:CreateLabel("Status: Waiting...")
 
--- --- SECTION: AUTO TELEPORT (FARM) ---
-GameTab:CreateSection("Auto Teleport (Item Farm)")
+GameTab:CreateSection("Auto Teleport")
 
--- Beherit
-GameTab:CreateToggle({
-   Name = "TP on Beherit Amount",
-   CurrentValue = false,
-   Flag = "TP_Beherit_Toggle",
-   Callback = function(Value)
-      isAutoBeherit = Value
-   end,
-})
+GameTab:CreateToggle({Name="TP on Beherit", CurrentValue=false, Flag="TP_Beherit", Callback=function(V) isAutoBeherit=V end})
+GameTab:CreateInput({Name="Target Beherit", PlaceholderText="Amount", RemoveTextAfterFocusLost=false, Flag="TP_Beherit_Num", Callback=function(T) targetBeherit=tonumber(T) or 0 end})
 
-GameTab:CreateInput({
-   Name = "Target Beherit",
-   PlaceholderText = "e.g., 10000",
-   RemoveTextAfterFocusLost = false,
-   Flag = "TP_Beherit_Input",
-   Callback = function(Text)
-       targetBeherit = tonumber(Text) or 0
-   end,
-})
-
--- Ancient (Dragonpoints)
-GameTab:CreateToggle({
-   Name = "TP on Ancient Points",
-   CurrentValue = false,
-   Flag = "TP_Ancient_Toggle",
-   Callback = function(Value)
-      isAutoAncient = Value
-   end,
-})
-
-GameTab:CreateInput({
-   Name = "Target Ancient Points",
-   PlaceholderText = "e.g., 10000",
-   RemoveTextAfterFocusLost = false,
-   Flag = "TP_Ancient_Input",
-   Callback = function(Text)
-       targetAncient = tonumber(Text) or 0
-   end,
-})
+GameTab:CreateToggle({Name="TP on Ancient", CurrentValue=false, Flag="TP_Ancient", Callback=function(V) isAutoAncient=V end})
+GameTab:CreateInput({Name="Target Ancient", PlaceholderText="Amount", RemoveTextAfterFocusLost=false, Flag="TP_Ancient_Num", Callback=function(T) targetAncient=tonumber(T) or 0 end})
 
 local TeleportLabel = GameTab:CreateLabel("Inventory: Waiting...")
 
@@ -333,64 +302,29 @@ local TeleportLabel = GameTab:CreateLabel("Inventory: Waiting...")
 -- =============================================
 local ShopTab = Window:CreateTab("Shop Manager", 4483362458)
 
-ShopTab:CreateSection("Ragna Capsule (Event)")
+ShopTab:CreateSection("Ragna Capsule")
+ShopTab:CreateInput({Name="Buy Amount", PlaceholderText="1", RemoveTextAfterFocusLost=false, Flag="Ragna_BuyNum", Callback=function(T) buyCapsuleAmount=tonumber(T) or 1 end})
+ShopTab:CreateToggle({Name="Auto Buy (Loop 1s)", CurrentValue=false, Flag="Ragna_AutoBuy", Callback=function(V) isAutoBuyCapsule=V end})
+ShopTab:CreateInput({Name="Open Amount", PlaceholderText="1", RemoveTextAfterFocusLost=false, Flag="Ragna_OpenNum", Callback=function(T) openCapsuleAmount=tonumber(T) or 1 end})
+ShopTab:CreateToggle({Name="Auto Open (Loop 1s)", CurrentValue=false, Flag="Ragna_AutoOpen", Callback=function(V) isAutoOpenCapsule=V end})
 
--- Auto Buy
-ShopTab:CreateInput({
-   Name = "Buy Amount",
-   PlaceholderText = "Default: 1",
-   RemoveTextAfterFocusLost = false,
-   Flag = "Ragna_BuyAmount",
-   Callback = function(Text)
-       buyCapsuleAmount = tonumber(Text) or 1
-   end,
-})
-
-ShopTab:CreateToggle({
-   Name = "Auto Buy Capsule (1s Loop)",
-   CurrentValue = false,
-   Flag = "Ragna_AutoBuy",
-   Callback = function(Value)
-      isAutoBuyCapsule = Value
-   end,
-})
-
--- Auto Open
-ShopTab:CreateInput({
-   Name = "Open Amount",
-   PlaceholderText = "Default: 1",
-   RemoveTextAfterFocusLost = false,
-   Flag = "Ragna_OpenAmount",
-   Callback = function(Text)
-       openCapsuleAmount = tonumber(Text) or 1
-   end,
-})
-
-ShopTab:CreateToggle({
-   Name = "Auto Open Capsule (1s Loop)",
-   CurrentValue = false,
-   Flag = "Ragna_AutoOpen",
-   Callback = function(Value)
-      isAutoOpenCapsule = Value
-   end,
-})
-
+ShopTab:CreateSection("Christmas Capsule")
+ShopTab:CreateInput({Name="Buy Amount", PlaceholderText="1", RemoveTextAfterFocusLost=false, Flag="Chris_BuyNum", Callback=function(T) buyChristmasAmount=tonumber(T) or 1 end})
+ShopTab:CreateToggle({Name="Auto Buy (Loop 1s)", CurrentValue=false, Flag="Chris_AutoBuy", Callback=function(V) isAutoBuyChristmas=V end})
+ShopTab:CreateInput({Name="Open Amount", PlaceholderText="1", RemoveTextAfterFocusLost=false, Flag="Chris_OpenNum", Callback=function(T) openChristmasAmount=tonumber(T) or 1 end})
+ShopTab:CreateToggle({Name="Auto Open (Loop 1s)", CurrentValue=false, Flag="Chris_AutoOpen", Callback=function(V) isAutoOpenChristmas=V end})
 
 -- =============================================
 -- LOGIC LOOPS
 -- =============================================
 
--- 1. Auto Host Loop
 task.spawn(function()
     while true do
         if isAutoHosting then
             local RoomFunction = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("RoomFunction")
             if RoomFunction then
                 pcall(function()
-                    local args = {
-                        [1] = "host",
-                        [2] = { ["stage"] = selectedStage, ["friendOnly"] = isFriendOnly }
-                    }
+                    local args = { [1] = "host", [2] = { ["stage"] = selectedStage, ["friendOnly"] = isFriendOnly } }
                     RoomFunction:InvokeServer(unpack(args))
                     task.wait(1.5 + hostDelay)
                     RoomFunction:InvokeServer("start")
@@ -402,7 +336,54 @@ task.spawn(function()
     end
 end)
 
--- 2. Auto Restart Loop (Coin OR Wave)
+task.spawn(function()
+    while true do
+        if isAutoAncientMax then
+            local CreatePortal = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events") and ReplicatedStorage.PlayMode.Events:FindFirstChild("CreatingPortal")
+            local RoomFunction = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("RoomFunction")
+
+            if CreatePortal and RoomFunction then
+                pcall(function()
+                    local maxF = getAncientMaxFloor()
+                    local args = {
+                        [1] = "Tower Adventures",
+                        [2] = {
+                            [1] = "The Lost Ancient World",
+                            [2] = tostring(maxF),
+                            [3] = "Tower Adventures"
+                        }
+                    }
+                    CreatePortal:InvokeServer(unpack(args))
+                    task.wait(1.5 + hostDelay)
+                    RoomFunction:InvokeServer("start")
+                end)
+                task.wait(3)
+            end
+        elseif isAutoAncientCustom then
+            local CreatePortal = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events") and ReplicatedStorage.PlayMode.Events:FindFirstChild("CreatingPortal")
+            local RoomFunction = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("RoomFunction")
+
+            if CreatePortal and RoomFunction then
+                pcall(function()
+                    local args = {
+                        "Create_Solo",
+                        {
+                            "The Lost Ancient World",
+                            tostring(customAncientFloor),
+                            "Tower Adventures"
+                        }
+                    }
+                    CreatePortal:InvokeServer(unpack(args))
+                    task.wait(1.5 + hostDelay)
+                    RoomFunction:InvokeServer("start")
+                end)
+                task.wait(3)
+            end
+        end
+        task.wait(1)
+    end
+end)
+
 task.spawn(function()
     while true do
         local currentCoin = 0
@@ -414,17 +395,12 @@ task.spawn(function()
         end
         
         local currentWave = getCurrentWave()
-        
         StatusLabel:Set("Coin: " .. currentCoin .. " / " .. targetCoins .. " | Wave: " .. currentWave .. " / " .. targetWave)
 
         if isAutoRestart then
-            local MiscAction = ReplicatedStorage:FindFirstChild("Remotes") 
-                               and ReplicatedStorage.Remotes:FindFirstChild("Misc") 
-                               and ReplicatedStorage.Remotes.Misc:FindFirstChild("Action")
-
+            local MiscAction = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Misc") and ReplicatedStorage.Remotes.Misc:FindFirstChild("Action")
             if MiscAction then
                 local shouldRestart = false
-                
                 if targetCoins > 0 and currentCoin >= targetCoins then
                     Rayfield:Notify({Title = "Restarting", Content = "Target Coins Reached!", Duration = 3})
                     shouldRestart = true
@@ -445,17 +421,14 @@ task.spawn(function()
     end
 end)
 
--- 3. Auto Buy Modifier Loop (CHECK WAVE)
 task.spawn(function()
     while true do
         if isAutoBuy then
             local currentWave = getCurrentWave()
-            
             if currentWave >= targetBuyWave then
                 local myMoney = getMyMoney()
                 local ModifierShop = ReplicatedStorage:FindFirstChild("ModifierShop")
                 local currentQueue = {prioritySlot1, prioritySlot2, prioritySlot3, prioritySlot4}
-
                 if ModifierShop then
                     for _, modName in ipairs(currentQueue) do
                         if modName and modName ~= "None" then
@@ -476,80 +449,67 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Teleport Loop (Beherit & Ancient)
 task.spawn(function()
     while true do
         local inv = LocalPlayer:FindFirstChild("ItemsInventory")
-        local currentBeherit = 0
-        local currentAncient = 0
+        local curBeherit = inv and inv:FindFirstChild("Beherit") and inv.Beherit:FindFirstChild("Amount") and inv.Beherit.Amount.Value or 0
+        local curAncient = inv and inv:FindFirstChild("Dragonpoints") and inv.Dragonpoints:FindFirstChild("Amount") and inv.Dragonpoints.Amount.Value or 0
         
-        if inv then
-            if inv:FindFirstChild("Beherit") and inv.Beherit:FindFirstChild("Amount") then
-                currentBeherit = inv.Beherit.Amount.Value
-            end
-            if inv:FindFirstChild("Dragonpoints") and inv.Dragonpoints:FindFirstChild("Amount") then
-                currentAncient = inv.Dragonpoints.Amount.Value
-            end
-        end
+        TeleportLabel:Set("Beherit: " .. curBeherit .. " | Ancient: " .. curAncient)
         
-        TeleportLabel:Set("Beherit: " .. currentBeherit .. " | Ancient: " .. currentAncient)
-        
-        if isAutoBeherit and targetBeherit > 0 and currentBeherit >= targetBeherit then
+        if isAutoBeherit and targetBeherit > 0 and curBeherit >= targetBeherit then
             Rayfield:Notify({Title = "Teleporting", Content = "Beherit Target Reached!", Duration = 3})
             TeleportService:Teleport(17282336195, LocalPlayer)
             break
         end
 
-        if isAutoAncient and targetAncient > 0 and currentAncient >= targetAncient then
+        if isAutoAncient and targetAncient > 0 and curAncient >= targetAncient then
             Rayfield:Notify({Title = "Teleporting", Content = "Ancient Points Target Reached!", Duration = 3})
             TeleportService:Teleport(17282336195, LocalPlayer)
             break
         end
-        
         task.wait(5)
     end
 end)
 
--- 5. Auto Buy Ragna Capsule Loop
 task.spawn(function()
     while true do
         if isAutoBuyCapsule and buyCapsuleAmount > 0 then
-            local PlayMode = ReplicatedStorage:FindFirstChild("PlayMode")
-            local Events = PlayMode and PlayMode:FindFirstChild("Events")
-            local EventShop = Events and Events:FindFirstChild("EventShop")
-            
-            if EventShop then
+            local EventShop = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events") and ReplicatedStorage.PlayMode.Events:FindFirstChild("EventShop")
+            if EventShop then pcall(function() EventShop:InvokeServer(buyCapsuleAmount, "Ragna Capsule", "RagnaShop") end) end
+        end
+        task.wait(1)
+    end
+end)
+task.spawn(function()
+    while true do
+        if isAutoOpenCapsule and openCapsuleAmount > 0 then
+            local UseEvent = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events") and ReplicatedStorage.PlayMode.Events:FindFirstChild("Use")
+            if UseEvent then pcall(function() UseEvent:InvokeServer("Ragna Capsule", openCapsuleAmount) end) end
+        end
+        task.wait(1)
+    end
+end)
+task.spawn(function()
+    while true do
+        if isAutoBuyChristmas and buyChristmasAmount > 0 then
+            local remote = ReplicatedStorage:FindFirstChild("BLINK_RELIABLE_REMOTE")
+            if remote then
                 pcall(function()
-                    local args = {
-                        [1] = buyCapsuleAmount,
-                        [2] = "Ragna Capsule",
-                        [3] = "RagnaShop"
-                    }
-                    EventShop:InvokeServer(unpack(args))
+                    local buf = buffer.fromstring("\014\r\000\017\002\000\000\000CHRISTMASSHOPChristmas Capsule")
+                    buffer.writeu32(buf, 4, buyChristmasAmount)
+                    remote:FireServer(buf, {})
                 end)
             end
         end
         task.wait(1)
     end
 end)
-
--- 6. Auto Open Ragna Capsule Loop
 task.spawn(function()
     while true do
-        if isAutoOpenCapsule and openCapsuleAmount > 0 then
-            local PlayMode = ReplicatedStorage:FindFirstChild("PlayMode")
-            local Events = PlayMode and PlayMode:FindFirstChild("Events")
-            local UseEvent = Events and Events:FindFirstChild("Use")
-            
-            if UseEvent then
-                pcall(function()
-                    local args = {
-                        [1] = "Ragna Capsule",
-                        [2] = openCapsuleAmount
-                    }
-                    UseEvent:InvokeServer(unpack(args))
-                end)
-            end
+        if isAutoOpenChristmas and openChristmasAmount > 0 then
+            local UseEvent = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events") and ReplicatedStorage.PlayMode.Events:FindFirstChild("Use")
+            if UseEvent then pcall(function() UseEvent:InvokeServer("Christmas Capsule", openChristmasAmount) end) end
         end
         task.wait(1)
     end
