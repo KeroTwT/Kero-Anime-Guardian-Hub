@@ -2,7 +2,7 @@ local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
    Name = "Anime Guardian Sub-Script",
-   LoadingTitle = "MOEWTIEEEEEE",
+   LoadingTitle = "MOEWTIE",
    LoadingSubtitle = "Made by Kero :333",
    ConfigurationSaving = {
       Enabled = true,
@@ -17,6 +17,7 @@ local Window = Rayfield:CreateWindow({
 -- =============================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local TeleportService = game:GetService("TeleportService")
 local LocalPlayer = Players.LocalPlayer
 
 -- Lobby Variables
@@ -28,6 +29,18 @@ local isAutoHosting = false
 local targetCoins = 0
 local targetWave = 0
 local isAutoRestart = false
+
+-- Teleport Variables
+local isAutoBeherit = false
+local targetBeherit = 0
+local isAutoAncient = false
+local targetAncient = 0
+
+-- Shop Variables
+local isAutoBuyCapsule = false
+local buyCapsuleAmount = 1
+local isAutoOpenCapsule = false
+local openCapsuleAmount = 1
 
 -- Modifier Variables
 local isAutoBuy = false
@@ -246,6 +259,99 @@ GameTab:CreateInput({
 
 local StatusLabel = GameTab:CreateLabel("Status: Waiting...")
 
+-- --- SECTION: AUTO TELEPORT (FARM) ---
+GameTab:CreateSection("Auto Teleport (Item Farm)")
+
+-- Beherit
+GameTab:CreateToggle({
+   Name = "TP on Beherit Amount",
+   CurrentValue = false,
+   Flag = "TP_Beherit_Toggle",
+   Callback = function(Value)
+      isAutoBeherit = Value
+   end,
+})
+
+GameTab:CreateInput({
+   Name = "Target Beherit",
+   PlaceholderText = "e.g., 10000",
+   RemoveTextAfterFocusLost = false,
+   Flag = "TP_Beherit_Input",
+   Callback = function(Text)
+       targetBeherit = tonumber(Text) or 0
+   end,
+})
+
+-- Ancient (Dragonpoints)
+GameTab:CreateToggle({
+   Name = "TP on Ancient Points",
+   CurrentValue = false,
+   Flag = "TP_Ancient_Toggle",
+   Callback = function(Value)
+      isAutoAncient = Value
+   end,
+})
+
+GameTab:CreateInput({
+   Name = "Target Ancient Points",
+   PlaceholderText = "e.g., 10000",
+   RemoveTextAfterFocusLost = false,
+   Flag = "TP_Ancient_Input",
+   Callback = function(Text)
+       targetAncient = tonumber(Text) or 0
+   end,
+})
+
+local TeleportLabel = GameTab:CreateLabel("Inventory: Waiting...")
+
+-- =============================================
+-- TAB 3: SHOP MANAGER
+-- =============================================
+local ShopTab = Window:CreateTab("Shop Manager", 4483362458)
+
+ShopTab:CreateSection("Ragna Capsule (Event)")
+
+-- Auto Buy
+ShopTab:CreateInput({
+   Name = "Buy Amount",
+   PlaceholderText = "Default: 1",
+   RemoveTextAfterFocusLost = false,
+   Flag = "Ragna_BuyAmount",
+   Callback = function(Text)
+       buyCapsuleAmount = tonumber(Text) or 1
+   end,
+})
+
+ShopTab:CreateToggle({
+   Name = "Auto Buy Capsule (1s Loop)",
+   CurrentValue = false,
+   Flag = "Ragna_AutoBuy",
+   Callback = function(Value)
+      isAutoBuyCapsule = Value
+   end,
+})
+
+-- Auto Open
+ShopTab:CreateInput({
+   Name = "Open Amount",
+   PlaceholderText = "Default: 1",
+   RemoveTextAfterFocusLost = false,
+   Flag = "Ragna_OpenAmount",
+   Callback = function(Text)
+       openCapsuleAmount = tonumber(Text) or 1
+   end,
+})
+
+ShopTab:CreateToggle({
+   Name = "Auto Open Capsule (1s Loop)",
+   CurrentValue = false,
+   Flag = "Ragna_AutoOpen",
+   Callback = function(Value)
+      isAutoOpenCapsule = Value
+   end,
+})
+
+
 -- =============================================
 -- LOGIC LOOPS
 -- =============================================
@@ -339,6 +445,85 @@ task.spawn(function()
             end
         end
         task.wait(0.5)
+    end
+end)
+
+-- 4. Auto Teleport Loop (Beherit & Ancient)
+task.spawn(function()
+    while true do
+        local inv = LocalPlayer:FindFirstChild("ItemsInventory")
+        local currentBeherit = 0
+        local currentAncient = 0
+        
+        if inv then
+            if inv:FindFirstChild("Beherit") and inv.Beherit:FindFirstChild("Amount") then
+                currentBeherit = inv.Beherit.Amount.Value
+            end
+            if inv:FindFirstChild("Dragonpoints") and inv.Dragonpoints:FindFirstChild("Amount") then
+                currentAncient = inv.Dragonpoints.Amount.Value
+            end
+        end
+        
+        TeleportLabel:Set("Beherit: " .. currentBeherit .. " | Ancient: " .. currentAncient)
+        
+        if isAutoBeherit and targetBeherit > 0 and currentBeherit >= targetBeherit then
+            Rayfield:Notify({Title = "Teleporting", Content = "Beherit Target Reached!", Duration = 3})
+            TeleportService:Teleport(17282336195, LocalPlayer)
+            break
+        end
+
+        if isAutoAncient and targetAncient > 0 and currentAncient >= targetAncient then
+            Rayfield:Notify({Title = "Teleporting", Content = "Ancient Points Target Reached!", Duration = 3})
+            TeleportService:Teleport(17282336195, LocalPlayer)
+            break
+        end
+        
+        task.wait(5)
+    end
+end)
+
+-- 5. Auto Buy Ragna Capsule Loop
+task.spawn(function()
+    while true do
+        if isAutoBuyCapsule and buyCapsuleAmount > 0 then
+            local PlayMode = ReplicatedStorage:FindFirstChild("PlayMode")
+            local Events = PlayMode and PlayMode:FindFirstChild("Events")
+            local EventShop = Events and Events:FindFirstChild("EventShop")
+            
+            if EventShop then
+                pcall(function()
+                    local args = {
+                        [1] = buyCapsuleAmount,
+                        [2] = "Ragna Capsule",
+                        [3] = "RagnaShop"
+                    }
+                    EventShop:InvokeServer(unpack(args))
+                end)
+            end
+        end
+        task.wait(1)
+    end
+end)
+
+-- 6. Auto Open Ragna Capsule Loop
+task.spawn(function()
+    while true do
+        if isAutoOpenCapsule and openCapsuleAmount > 0 then
+            local PlayMode = ReplicatedStorage:FindFirstChild("PlayMode")
+            local Events = PlayMode and PlayMode:FindFirstChild("Events")
+            local UseEvent = Events and Events:FindFirstChild("Use")
+            
+            if UseEvent then
+                pcall(function()
+                    local args = {
+                        [1] = "Ragna Capsule",
+                        [2] = openCapsuleAmount
+                    }
+                    UseEvent:InvokeServer(unpack(args))
+                end)
+            end
+        end
+        task.wait(1)
     end
 end)
 
