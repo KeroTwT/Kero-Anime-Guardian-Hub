@@ -1,7 +1,7 @@
 local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
 
 local Window = Rayfield:CreateWindow({
-   Name = "Anime Guardian Sub-Script | Kero :333",
+   Name = "Anime Guardian Sub-Script | Kero :33",
    LoadingTitle = "MOEWTIE",
    LoadingSubtitle = "Made by Kero :333",
    ConfigurationSaving = {
