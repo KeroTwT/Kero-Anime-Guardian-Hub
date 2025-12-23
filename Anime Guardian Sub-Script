@@ -53,6 +53,11 @@ local buyChristmasAmount = 1
 local isAutoOpenChristmas = false
 local openChristmasAmount = 1
 
+-- Banner Variables (NEW)
+local selectedBanner = "OPMBanner"
+local summonAmount = 1
+local isAutoSummon = false
+
 -- Modifier Variables
 local isAutoBuy = false
 local targetBuyWave = 0
@@ -144,6 +149,23 @@ local function getAncientMaxFloor()
     return 1
 end
 
+-- [NEW] Hàm lấy danh sách Banner từ SummonPity
+local function getBannerList()
+    local list = {}
+    local profileData = LocalPlayer:FindFirstChild("ProfileData")
+    if profileData then
+        local summonPity = profileData:FindFirstChild("SummonPity")
+        if summonPity then
+            for _, item in pairs(summonPity:GetChildren()) do
+                table.insert(list, item.Name)
+            end
+        end
+    end
+    if #list == 0 then return {"OPMBanner"} end -- Fallback
+    table.sort(list)
+    return list
+end
+
 -- =============================================
 -- TAB 1: LOBBY MANAGER
 -- =============================================
@@ -224,7 +246,6 @@ LobbyTab:CreateToggle({
    Flag = "Lobby_AutoAncientCustom",
    Callback = function(Value) isAutoAncientCustom = Value end,
 })
-
 
 -- =============================================
 -- TAB 2: IN-GAME MANAGER
@@ -315,9 +336,56 @@ ShopTab:CreateInput({Name="Open Amount", PlaceholderText="1", RemoveTextAfterFoc
 ShopTab:CreateToggle({Name="Auto Open (Loop 1s)", CurrentValue=false, Flag="Chris_AutoOpen", Callback=function(V) isAutoOpenChristmas=V end})
 
 -- =============================================
+-- TAB 4: BANNER MANAGER (NEW)
+-- =============================================
+local BannerTab = Window:CreateTab("Banner Manager", 4483362458)
+
+BannerTab:CreateSection("Summon Settings")
+
+local BannerDropdown = BannerTab:CreateDropdown({
+   Name = "Select Banner",
+   Options = getBannerList(),
+   CurrentOption = {selectedBanner},
+   MultipleOptions = false,
+   Flag = "Banner_Select",
+   Callback = function(Option)
+      selectedBanner = Option[1]
+   end,
+})
+
+BannerTab:CreateButton({
+   Name = "Refresh Banner List",
+   Callback = function()
+       local newBanners = getBannerList()
+       BannerDropdown:Refresh(newBanners, true)
+       Rayfield:Notify({Title="Updated", Content="Found "..#newBanners.." banners.", Duration=2})
+   end,
+})
+
+BannerTab:CreateInput({
+   Name = "Summon Amount",
+   PlaceholderText = "1",
+   RemoveTextAfterFocusLost = false,
+   Flag = "Banner_Amount",
+   Callback = function(Text)
+       summonAmount = tonumber(Text) or 1
+   end,
+})
+
+BannerTab:CreateToggle({
+   Name = "Auto Summon (0.1s)",
+   CurrentValue = false,
+   Flag = "Banner_AutoSummon",
+   Callback = function(Value)
+      isAutoSummon = Value
+   end,
+})
+
+-- =============================================
 -- LOGIC LOOPS
 -- =============================================
 
+-- 1. Auto Host Loop (Normal)
 task.spawn(function()
     while true do
         if isAutoHosting then
@@ -336,6 +404,7 @@ task.spawn(function()
     end
 end)
 
+-- 2. Auto Host Loop (Ancient & Custom)
 task.spawn(function()
     while true do
         if isAutoAncientMax then
@@ -384,6 +453,7 @@ task.spawn(function()
     end
 end)
 
+-- 3. Auto Restart Loop
 task.spawn(function()
     while true do
         local currentCoin = 0
@@ -421,6 +491,7 @@ task.spawn(function()
     end
 end)
 
+-- 4. Auto Buy Modifier
 task.spawn(function()
     while true do
         if isAutoBuy then
@@ -449,6 +520,7 @@ task.spawn(function()
     end
 end)
 
+-- 5. Auto Teleport
 task.spawn(function()
     while true do
         local inv = LocalPlayer:FindFirstChild("ItemsInventory")
@@ -472,6 +544,7 @@ task.spawn(function()
     end
 end)
 
+-- 6. Shop Loops (Ragna & Christmas)
 task.spawn(function()
     while true do
         if isAutoBuyCapsule and buyCapsuleAmount > 0 then
@@ -512,6 +585,27 @@ task.spawn(function()
             if UseEvent then pcall(function() UseEvent:InvokeServer("Christmas Capsule", openChristmasAmount) end) end
         end
         task.wait(1)
+    end
+end)
+
+-- 7. Banner Summon Loop [NEW]
+task.spawn(function()
+    while true do
+        if isAutoSummon and summonAmount > 0 and selectedBanner then
+            local SummonEvent = ReplicatedStorage:FindFirstChild("PlayMode") 
+                                and ReplicatedStorage.PlayMode:FindFirstChild("Events") 
+                                and ReplicatedStorage.PlayMode.Events:FindFirstChild("Summon")
+            if SummonEvent then
+                pcall(function()
+                    local args = {
+                        [1] = selectedBanner,
+                        [2] = summonAmount
+                    }
+                    SummonEvent:InvokeServer(unpack(args))
+                end)
+            end
+        end
+        task.wait(0.1)
     end
 end)
 
