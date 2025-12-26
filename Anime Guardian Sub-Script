@@ -172,16 +172,13 @@ end
 local LobbyTab = Window:CreateTab("Lobby Manager", 4483362458)
 
 LobbyTab:CreateSection("Normal Room Settings")
-
 local StageDropdown = LobbyTab:CreateDropdown({
    Name = "Select Stage",
    Options = getAvailableStages(),
    CurrentOption = {selectedStage},
-   MultipleOptions = false,
    Flag = "Lobby_Stage",
    Callback = function(Option) selectedStage = Option[1] end,
 })
-
 LobbyTab:CreateButton({
    Name = "Refresh List",
    Callback = function()
@@ -190,7 +187,6 @@ LobbyTab:CreateButton({
        Rayfield:Notify({Title="Updated", Content="Found "..#newStages.." stages.", Duration=2})
    end,
 })
-
 LobbyTab:CreateToggle({Name="Friend Only", CurrentValue=true, Flag="Lobby_FriendOnly", Callback=function(V) isFriendOnly=V end})
 
 LobbyTab:CreateSection("Automation (Normal)")
@@ -200,7 +196,7 @@ LobbyTab:CreateSlider({Name="Start Delay (Seconds)", Range={0, 30}, Increment=1,
 LobbyTab:CreateSection("Ancient Floor")
 LobbyTab:CreateToggle({Name="Auto Host Ancient (Max Floor)", CurrentValue=false, Flag="Lobby_AutoAncientMax", Callback=function(V) isAutoAncientMax=V end})
 LobbyTab:CreateLabel("Custom Ancient Floor | USE AT YOUR OWN RISK")
-LobbyTab:CreateInput({Name="Put Ur Floor Number", PlaceholderText="e.g. 4000", RemoveTextAfterFocusLost=false, Flag="Lobby_CustomFloorNum", Callback=function(T) customAncientFloor=tonumber(T) or 1 end})
+LobbyTab:CreateInput({Name="Put Ur Floor Number", PlaceholderText="e.g. 4000", Flag="Lobby_CustomFloorNum", Callback=function(T) customAncientFloor=tonumber(T) or 1 end})
 LobbyTab:CreateToggle({Name="Auto Host Custom Floor", CurrentValue=false, Flag="Lobby_AutoAncientCustom", Callback=function(V) isAutoAncientCustom=V end})
 
 -- =============================================
@@ -210,8 +206,7 @@ local GameTab = Window:CreateTab("In-Game Manager", 4483362458)
 
 GameTab:CreateSection("Modifier Shop")
 GameTab:CreateToggle({Name="Auto Buy Modifiers", CurrentValue=false, Flag="Shop_AutoBuy", Callback=function(V) isAutoBuy=V end})
-GameTab:CreateInput({Name="Min Wave to Buy", PlaceholderText="0", RemoveTextAfterFocusLost=false, Flag="Shop_MinWave", Callback=function(T) targetBuyWave=tonumber(T) or 0 end})
-
+GameTab:CreateInput({Name="Min Wave to Buy", PlaceholderText="0", Flag="Shop_MinWave", Callback=function(T) targetBuyWave=tonumber(T) or 0 end})
 GameTab:CreateLabel("Priority Order:")
 GameTab:CreateDropdown({Name="Priority 1", Options=modifierList, CurrentOption={"Golden Tribute"}, Flag="P1", Callback=function(O) prioritySlot1=O[1] end})
 GameTab:CreateDropdown({Name="Priority 2", Options=modifierList, CurrentOption={"Power Surge"}, Flag="P2", Callback=function(O) prioritySlot2=O[1] end})
@@ -220,15 +215,15 @@ GameTab:CreateDropdown({Name="Priority 4", Options=modifierList, CurrentOption={
 
 GameTab:CreateSection("Auto Restart")
 GameTab:CreateToggle({Name="Auto Restart", CurrentValue=false, Flag="Restart_Master", Callback=function(V) isAutoRestart=V end})
-GameTab:CreateInput({Name="Target Coins", PlaceholderText="0", RemoveTextAfterFocusLost=false, Flag="Restart_Coins", Callback=function(T) targetCoins=tonumber(T) or 0 end})
-GameTab:CreateInput({Name="Target Wave", PlaceholderText="0", RemoveTextAfterFocusLost=false, Flag="Restart_Wave", Callback=function(T) targetWave=tonumber(T) or 0 end})
+GameTab:CreateInput({Name="Target Coins", PlaceholderText="0", Flag="Restart_Coins", Callback=function(T) targetCoins=tonumber(T) or 0 end})
+GameTab:CreateInput({Name="Target Wave", PlaceholderText="0", Flag="Restart_Wave", Callback=function(T) targetWave=tonumber(T) or 0 end})
 local StatusLabel = GameTab:CreateLabel("Status: Waiting...")
 
-GameTab:CreateSection("Auto Teleport")
+GameTab:CreateSection("Auto Teleport (Return to Lobby)")
 GameTab:CreateToggle({Name="TP on Beherit", CurrentValue=false, Flag="TP_Beherit", Callback=function(V) isAutoBeherit=V end})
-GameTab:CreateInput({Name="Target Beherit", PlaceholderText="Amount", RemoveTextAfterFocusLost=false, Flag="TP_Beherit_Num", Callback=function(T) targetBeherit=tonumber(T) or 0 end})
+GameTab:CreateInput({Name="Target Beherit", PlaceholderText="Amount", Flag="TP_Beherit_Num", Callback=function(T) targetBeherit=tonumber(T) or 0 end})
 GameTab:CreateToggle({Name="TP on Ancient", CurrentValue=false, Flag="TP_Ancient", Callback=function(V) isAutoAncient=V end})
-GameTab:CreateInput({Name="Target Ancient", PlaceholderText="Amount", RemoveTextAfterFocusLost=false, Flag="TP_Ancient_Num", Callback=function(T) targetAncient=tonumber(T) or 0 end})
+GameTab:CreateInput({Name="Target Ancient", PlaceholderText="Amount", Flag="TP_Ancient_Num", Callback=function(T) targetAncient=tonumber(T) or 0 end})
 local TeleportLabel = GameTab:CreateLabel("Inventory: Waiting...")
 
 -- =============================================
@@ -253,7 +248,6 @@ ShopTab:CreateToggle({Name="Auto Open (Loop 1s)", CurrentValue=false, Flag="Chri
 -- =============================================
 local BannerTab = Window:CreateTab("Banner Manager", 4483362458)
 BannerTab:CreateSection("Summon Settings")
-
 local BannerDropdown = BannerTab:CreateDropdown({
    Name = "Select Banner",
    Options = getBannerList(),
@@ -273,65 +267,39 @@ BannerTab:CreateInput({Name="Summon Amount", PlaceholderText="1", Flag="Banner_A
 BannerTab:CreateToggle({Name="Auto Summon (0.1s)", CurrentValue=false, Flag="Banner_AutoSummon", Callback=function(V) isAutoSummon=V end})
 
 -- =============================================
--- TAB 5: SETTINGS (NEW)
+-- TAB 5: SETTINGS
 -- =============================================
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
-
 SettingsTab:CreateSection("Performance & UI")
-
 SettingsTab:CreateToggle({
    Name = "White Screen (AFK Mode)",
    CurrentValue = false,
    Flag = "Set_WhiteScreen",
    Callback = function(Value)
       RunService:Set3dRenderingEnabled(not Value)
-      if Value then
-         Rayfield:Notify({Title="AFK Mode", Content="3D Rendering Disabled (Saves CPU/GPU)", Duration=3})
-      else
-         Rayfield:Notify({Title="Active Mode", Content="3D Rendering Enabled", Duration=3})
-      end
+      if Value then Rayfield:Notify({Title="AFK Mode", Content="3D Rendering Disabled", Duration=3}) else Rayfield:Notify({Title="Active Mode", Content="3D Rendering Enabled", Duration=3}) end
    end,
 })
-
 SettingsTab:CreateToggle({
    Name = "Hide Game UI",
    CurrentValue = false,
    Flag = "Set_HideGameUI",
    Callback = function(Value)
       local gui = LocalPlayer.PlayerGui:FindFirstChild("GUI") or LocalPlayer.PlayerGui:FindFirstChild("Main")
-      if gui then
-         gui.Enabled = not Value
-      end
-      -- Ẩn thêm các thành phần khác nếu cần
+      if gui then gui.Enabled = not Value end
       local hotbar = LocalPlayer.PlayerGui:FindFirstChild("Hotbar")
       if hotbar then hotbar.Enabled = not Value end
    end,
 })
-
 SettingsTab:CreateSection("Hub Settings")
-
-SettingsTab:CreateKeybind({
-   Name = "Toggle Hub Keybind",
-   CurrentKeybind = "RightControl",
-   HoldToInteract = false,
-   Flag = "Set_Keybind",
-   Callback = function(Keybind)
-      -- Keybind updated
-   end,
-})
-
-SettingsTab:CreateButton({
-   Name = "Destroy UI (Unload)",
-   Callback = function()
-      Rayfield:Destroy()
-   end,
-})
+SettingsTab:CreateKeybind({Name = "Toggle Hub Keybind", CurrentKeybind = "RightControl", HoldToInteract = false, Flag = "Set_Keybind", Callback = function(Keybind) end})
+SettingsTab:CreateButton({Name = "Destroy UI (Unload)", Callback = function() Rayfield:Destroy() end})
 
 -- =============================================
 -- LOGIC LOOPS
 -- =============================================
 
--- 1. Auto Host Loop (Normal)
+-- 1. Auto Host
 task.spawn(function()
     while true do
         if isAutoHosting then
@@ -350,7 +318,7 @@ task.spawn(function()
     end
 end)
 
--- 2. Auto Host Loop (Ancient & Custom)
+-- 2. Auto Host Ancient
 task.spawn(function()
     while true do
         if isAutoAncientMax then
@@ -381,11 +349,14 @@ task.spawn(function()
     end
 end)
 
--- 3. Auto Restart Loop
+-- 3. Auto Restart
 task.spawn(function()
     while true do
         local currentCoin = 0
-        if LocalPlayer.PlayerGui:FindFirstChild("GUI") and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("RewardFrame") and LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame:FindFirstChild("ChristmasCoin") then
+        if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
+           and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
+           and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("RewardFrame") 
+           and LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame:FindFirstChild("ChristmasCoin") then
             currentCoin = cleanNumber(LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame.ChristmasCoin.Text)
         end
         local currentWave = getCurrentWave()
@@ -395,8 +366,14 @@ task.spawn(function()
             local MiscAction = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Misc") and ReplicatedStorage.Remotes.Misc:FindFirstChild("Action")
             if MiscAction then
                 local shouldRestart = false
-                if targetCoins > 0 and currentCoin >= targetCoins then shouldRestart = true end
-                if targetWave > 0 and currentWave >= targetWave then shouldRestart = true end
+                if targetCoins > 0 and currentCoin >= targetCoins then
+                    Rayfield:Notify({Title = "Restarting", Content = "Target Coins Reached!", Duration = 3})
+                    shouldRestart = true
+                end
+                if targetWave > 0 and currentWave >= targetWave then
+                    Rayfield:Notify({Title = "Restarting", Content = "Target Wave Reached!", Duration = 3})
+                    shouldRestart = true
+                end
                 if shouldRestart then
                     pcall(function() MiscAction:FireServer("Restart") end)
                     task.wait(10)
@@ -407,7 +384,7 @@ task.spawn(function()
     end
 end)
 
--- 4. Auto Buy Modifier
+-- 4. Auto Modifier
 task.spawn(function()
     while true do
         if isAutoBuy then
@@ -433,15 +410,28 @@ task.spawn(function()
     end
 end)
 
--- 5. Auto Teleport
+-- 5. Auto Teleport (Lobby) [UPDATED]
 task.spawn(function()
     while true do
         local inv = LocalPlayer:FindFirstChild("ItemsInventory")
         local curBeherit = inv and inv:FindFirstChild("Beherit") and inv.Beherit:FindFirstChild("Amount") and inv.Beherit.Amount.Value or 0
         local curAncient = inv and inv:FindFirstChild("Dragonpoints") and inv.Dragonpoints:FindFirstChild("Amount") and inv.Dragonpoints.Amount.Value or 0
         TeleportLabel:Set("Beherit: " .. curBeherit .. " | Ancient: " .. curAncient)
-        if isAutoBeherit and targetBeherit > 0 and curBeherit >= targetBeherit then TeleportService:Teleport(17282336195, LocalPlayer); break end
-        if isAutoAncient and targetAncient > 0 and curAncient >= targetAncient then TeleportService:Teleport(17282336195, LocalPlayer); break end
+        
+        local TeleportRemote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Misc") and ReplicatedStorage.Remotes.Misc:FindFirstChild("Teleport")
+        
+        if TeleportRemote then
+            if isAutoBeherit and targetBeherit > 0 and curBeherit >= targetBeherit then
+                Rayfield:Notify({Title = "Teleporting", Content = "Beherit Target Reached!", Duration = 3})
+                TeleportRemote:FireServer("Lobby")
+                break
+            end
+            if isAutoAncient and targetAncient > 0 and curAncient >= targetAncient then
+                Rayfield:Notify({Title = "Teleporting", Content = "Ancient Points Target Reached!", Duration = 3})
+                TeleportRemote:FireServer("Lobby")
+                break
+            end
+        end
         task.wait(5)
     end
 end)
