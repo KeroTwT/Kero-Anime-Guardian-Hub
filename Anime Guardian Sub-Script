@@ -318,27 +318,61 @@ task.spawn(function()
     end
 end)
 
--- 2. Auto Host Ancient
+-- 2. Auto Host Ancient (UPDATED LOGIC)
 task.spawn(function()
     while true do
+        -- A. Auto Max Floor (Host -> Wait -> Start)
         if isAutoAncientMax then
-            local CreatePortal = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events") and ReplicatedStorage.PlayMode.Events:FindFirstChild("CreatingPortal")
-            local RoomFunction = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("RoomFunction")
-            if CreatePortal and RoomFunction then
+            local CreatePortal = ReplicatedStorage:FindFirstChild("PlayMode") 
+                                 and ReplicatedStorage.PlayMode:FindFirstChild("Events") 
+                                 and ReplicatedStorage.PlayMode.Events:FindFirstChild("CreatingPortal")
+
+            if CreatePortal then
                 pcall(function()
                     local maxF = getAncientMaxFloor()
-                    CreatePortal:InvokeServer("Tower Adventures", {"The Lost Ancient World", tostring(maxF), "Tower Adventures"})
+                    
+                    -- STEP 1: HOST (Dùng code cũ như bạn yêu cầu)
+                    local hostArgs = {
+                        [1] = "Tower Adventures",
+                        [2] = {
+                            [1] = "The Lost Ancient World",
+                            [2] = tostring(maxF),
+                            [3] = "Tower Adventures"
+                        }
+                    }
+                    CreatePortal:InvokeServer(unpack(hostArgs))
+                    
                     task.wait(1.5 + hostDelay)
-                    RoomFunction:InvokeServer("start")
+                    
+                    -- STEP 2: START (Dùng remote "Create" mới, thay thế cho RoomFunction:Start)
+                    local startArgs = {
+                        [1] = "Create",
+                        [2] = {
+                            [1] = "The Lost Ancient World",
+                            [2] = tostring(maxF), -- Tự động điền tầng cao nhất
+                            [3] = "Tower Adventures"
+                        }
+                    }
+                    CreatePortal:InvokeServer(unpack(startArgs))
                 end)
                 task.wait(3)
             end
+            
+        -- B. Custom Floor (Logic Riêng)
         elseif isAutoAncientCustom then
             local CreatePortal = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events") and ReplicatedStorage.PlayMode.Events:FindFirstChild("CreatingPortal")
             local RoomFunction = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("RoomFunction")
             if CreatePortal and RoomFunction then
                 pcall(function()
-                    CreatePortal:InvokeServer("Create_Solo", {"The Lost Ancient World", tostring(customAncientFloor), "Tower Adventures"})
+                    local args = {
+                        "Create_Solo",
+                        {
+                            "The Lost Ancient World",
+                            tostring(customAncientFloor),
+                            "Tower Adventures"
+                        }
+                    }
+                    CreatePortal:InvokeServer(unpack(args))
                     task.wait(1.5 + hostDelay)
                     RoomFunction:InvokeServer("start")
                 end)
@@ -410,7 +444,7 @@ task.spawn(function()
     end
 end)
 
--- 5. Auto Teleport (Lobby) [UPDATED]
+-- 5. Auto Teleport (Lobby)
 task.spawn(function()
     while true do
         local inv = LocalPlayer:FindFirstChild("ItemsInventory")
