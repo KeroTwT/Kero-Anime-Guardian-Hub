@@ -1,4 +1,4 @@
--- [V39] AWTD Macro | Lobby Manager & Auto-Save
+-- [V40] AWTD Macro | Clean UI (Removed Coordinates Text)
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
@@ -197,7 +197,7 @@ Tabs.Macro:AddToggle("PlayToggle", {Title = "Play", Default = false }):OnChanged
 end)
 
 -- TAB: LOBBY MANAGER
-Tabs.Lobby:AddParagraph({Title = "Auto Restart", Content = "Uses fixed coordinates ("..RETRY_X..", "..RETRY_Y..")"})
+-- [V40 CHANGE] Removed the Paragraph
 local LoopToggle = Tabs.Lobby:AddToggle("LoopToggle", {Title = "Auto Restart", Default = false })
 LoopToggle:OnChanged(function(v) isLooping = v end)
 
