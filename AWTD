@@ -15,15 +15,9 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- =============================================
--- CONFIGURATION
--- =============================================
 local MACRO_FOLDER = "AWTD_Macros_Kero"
 local CALC_DELAY = 0.5 
 
--- =============================================
--- VARIABLES
--- =============================================
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
@@ -44,9 +38,6 @@ local AllowedRemotes = {
 
 if not isfolder(MACRO_FOLDER) then makefolder(MACRO_FOLDER) end
 
--- =============================================
--- HELPER FUNCTIONS
--- =============================================
 local function SmartFire(remote, args)
     if not remote then return end
     args = args or {}
@@ -99,9 +90,6 @@ local function firebutton(Button)
     GuiService.SelectedObject = oldSel
 end
 
--- =============================================
--- FILE SYSTEM
--- =============================================
 local function SaveCurrentMacro()
     if currentMacroName == "" then return end
     local exportData = {}
@@ -136,9 +124,6 @@ local function GetMacroFiles()
     return names
 end
 
--- =============================================
--- RECORDER
--- =============================================
 local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
@@ -183,9 +168,6 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 setreadonly(mt, true)
 
--- =============================================
--- UI SETUP
--- =============================================
 local Tabs = {
     Macro = Window:AddTab({ Title = "Macro Manager", Icon = "file-cog" }),
     Lobby = Window:AddTab({ Title = "Lobby Manager", Icon = "home" }),
@@ -199,7 +181,6 @@ local function UpdateStatus(status, details)
     StatusParagraph:SetDesc(details or "")
 end
 
--- TAB: MACRO MANAGER
 Tabs.Macro:AddInput("InputMacroName", {Title = "New Macro Name", Placeholder = "MapName_Diff", Callback = function() end})
 Tabs.Macro:AddButton({Title = "Create New File", Callback = function() local name = Options.InputMacroName.Value; if name~="" then currentMacroName=name; currentMacroData={}; SaveCurrentMacro(); Options.FileSelect:SetValues(GetMacroFiles()); Options.FileSelect:SetValue(name) end end})
 Tabs.Macro:AddDropdown("FileSelect", {Title = "Select File", Values = GetMacroFiles(), Default = 1, Callback = function(v) if v then LoadMacro(v) end end})
@@ -217,12 +198,41 @@ Tabs.Macro:AddToggle("PlayToggle", {Title = "Play", Default = false }):OnChanged
     if v then isRecording=false; playMacro() else isPlaying=false; UpdateStatus("Stopped", "User Cancelled") end
 end)
 
--- TAB: LOBBY MANAGER
 Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false })
 Tabs.Lobby:AddToggle("AutoNext", {Title = "Auto Next", Default = false })
 Tabs.Lobby:AddToggle("AutoLeave", {Title = "Auto Leave", Default = false })
 
--- TAB: SETTINGS & AUTO SAVE
+Tabs.Lobby:AddSection("Abyss Bypass")
+
+local abyssFloorVal = "40"
+
+Tabs.Lobby:AddInput("AbyssFloorInput", {
+    Title = "Bypass Abyss Floor",
+    Default = "40",
+    Placeholder = "40",
+    Numeric = true,
+    Finished = false,
+    Callback = function(Value)
+        abyssFloorVal = Value
+    end
+})
+
+Tabs.Lobby:AddToggle("AutoJoinAbyss", {Title = "Auto Join Abyss", Default = false }):OnChanged(function(Value)
+    getgenv().AutoJoinAbyssLoop = Value
+    if Value then
+        task.spawn(function()
+            while getgenv().AutoJoinAbyssLoop do
+                local remote = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("TeleportToStage")
+                if remote then
+                    local args = "Abyss_" .. abyssFloorVal
+                    remote:FireServer(args)
+                end
+                task.wait(2)
+            end
+        end)
+    end
+end)
+
 SaveManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
@@ -234,9 +244,6 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
 
--- =============================================
--- LOGIC
--- =============================================
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
@@ -253,7 +260,6 @@ function playMacro()
         }
 
         while isPlaying do
-            -- FORCE STOP IF GAMEOVER APPEARS
             local eff = Workspace:FindFirstChild("Effect")
             if eff and eff:FindFirstChild("Gameover") then
                 isPlaying = false
@@ -295,9 +301,6 @@ function playMacro()
     end)
 end
 
--- =============================================
--- SYSTEM LOOP (WATCHER)
--- =============================================
 task.spawn(function()
     local waitingForReplay = false
 
@@ -306,9 +309,8 @@ task.spawn(function()
         local gameover = eff and eff:FindFirstChild("Gameover")
 
         if gameover then
-            -- STATE: GAME OVER
             waitingForReplay = true
-            isPlaying = false -- Force stop macro
+            isPlaying = false
 
             if Options.AutoRestart.Value then
                 firebutton(getUiButton("Restart"))
@@ -320,7 +322,6 @@ task.spawn(function()
             
             task.wait(0.5)
         else
-            -- STATE: IN GAME (Effect.Gameover Gone)
             if waitingForReplay then
                 waitingForReplay = false
                 
