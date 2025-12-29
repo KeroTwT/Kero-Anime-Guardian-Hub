@@ -261,9 +261,9 @@ function playMacro()
 
         while isPlaying do
             local eff = Workspace:FindFirstChild("Effect")
-            if eff and eff:FindFirstChild("Gameover") then
+            if eff and (eff:FindFirstChild("Gameover") or eff:FindFirstChild("Victory")) then
                 isPlaying = false
-                UpdateStatus("Stopped", "Gameover Detected")
+                UpdateStatus("Stopped", "Game Ended Detected")
                 break
             end
 
@@ -293,8 +293,7 @@ function playMacro()
                         elseif not readyM then UpdateStatus("Waiting", "Cash: "..cash.."/"..cost) end
                 end
             else
-                UpdateStatus("Idle", "Macro Finished.")
-                break
+                UpdateStatus("Waiting", "Macro Done - Waiting for End...")
             end
             task.wait(0.1)
         end
@@ -307,8 +306,9 @@ task.spawn(function()
     while task.wait(0.5) do
         local eff = Workspace:FindFirstChild("Effect")
         local gameover = eff and eff:FindFirstChild("Gameover")
+        local victory = eff and eff:FindFirstChild("Victory")
 
-        if gameover then
+        if gameover or victory then
             waitingForReplay = true
             isPlaying = false
 
