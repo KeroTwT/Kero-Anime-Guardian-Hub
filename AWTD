@@ -1,9 +1,9 @@
--- // DỌN DẸP SCRIPT CŨ //
 if getgenv().StopAllMacros then
     getgenv().StopAllMacros = true
     task.wait(0.2)
 end
 getgenv().StopAllMacros = false
+getgenv().AutoUrara = false
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -22,7 +22,7 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- // MOBILE ICON THÔNG MINH //
+-- // MOBILE TOGGLE //
 task.spawn(function()
     local IconImageID = "rbxassetid://80972749206953" 
     local CoreGui = game:GetService("CoreGui")
@@ -71,6 +71,7 @@ task.spawn(function()
     end)
 end)
 
+-- // VARIABLES //
 local MACRO_FOLDER = "AWTD_Macros_Kero"
 local CALC_DELAY = 0.5 
 local Players = game:GetService("Players")
@@ -90,6 +91,7 @@ local playbackMode = "Hybrid"
 local AllowedRemotes = { ["SpawnUnit"]=true, ["SellUnit"]=true, ["UpgradeUnit"]=true, ["UnitAbility"]=true, ["BuyMeat"]=true, ["FeedAll"]=true, ["SkipEvent"]=true, ["x2Event"]=true }
 if not isfolder(MACRO_FOLDER) then makefolder(MACRO_FOLDER) end
 
+-- // HELPER FUNCTIONS //
 local function SmartFire(remote, args)
     if not remote then return end
     if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then remote:FireServer(unpack(args or {}))
@@ -107,6 +109,7 @@ local function SaveCurrentMacro() if currentMacroName=="" then return end; local
 local function LoadMacro(n) if not isfile(MACRO_FOLDER.."/"..n..".json") then return end; local c=readfile(MACRO_FOLDER.."/"..n..".json"); local d=HttpService:JSONDecode(c); currentMacroData={}; for _,a in ipairs(d) do if a.CFrame then a.CFrame=TableToCFrame(a.CFrame) end; table.insert(currentMacroData,a) end; currentMacroName=n end
 local function GetMacroFiles() local f=listfiles(MACRO_FOLDER); local n={}; for _,v in ipairs(f) do local nm=v:match("([^/]+)%.json$"); if nm then table.insert(n,nm) end end; return n end
 
+-- // HOOK NAMECALL //
 local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
@@ -134,15 +137,17 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 setreadonly(mt, true)
 
+-- // UI SETUP //
 local Tabs = {
     Macro = Window:AddTab({ Title = "Macro Manager", Icon = "file-cog" }),
+    Ability = Window:AddTab({ Title = "Ability Manager", Icon = "star" }),
     Lobby = Window:AddTab({ Title = "Lobby Manager", Icon = "home" }),
     Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
 }
 local Options = Fluent.Options
 
--- // MACRO UI (ĐÃ SỬA LỖI MẤT STATUS) //
-local StatusParagraph = Tabs.Macro:AddParagraph({ Title = "Status: Idle", Content = "Waiting..." }) -- Đã thêm lại dòng này
+-- // MACRO MANAGER //
+local StatusParagraph = Tabs.Macro:AddParagraph({ Title = "Status: Idle", Content = "Waiting..." })
 
 local function UpdateStatus(status, details)
     if StatusParagraph then
@@ -160,6 +165,37 @@ Tabs.Macro:AddToggle("RecordToggle", {Title = "Record", Default = false }):OnCha
 Tabs.Macro:AddDropdown("ModeSelect", {Title = "Mode", Values = {"Time", "Money", "Hybrid"}, Default = "Hybrid", Callback = function(v) playbackMode = v end})
 Tabs.Macro:AddToggle("PlayToggle", {Title = "Play", Default = getgenv().AutoResumeState}):OnChanged(function(v) getgenv().AutoResumeState = v; if v then isRecording=false; playMacro() else isPlaying=false; UpdateStatus("Stopped", "User Cancelled") end end)
 
+-- // ABILITY MANAGER //
+Tabs.Ability:AddToggle("AutoUraraToggle", {Title = "Auto Urara Ability", Default = false }):OnChanged(function(Value)
+    getgenv().AutoUrara = Value
+    
+    if Value then
+        task.spawn(function()
+            while getgenv().AutoUrara do
+                pcall(function()
+                    local units = Workspace:WaitForChild("Units", 5)
+                    if units then
+                        for _, unit in pairs(units:GetChildren()) do
+                            if unit.Name == "Urara" then
+                                local owner = unit:FindFirstChild("Owner")
+                                if owner and owner.Value == LocalPlayer then
+                                    local args = {
+                                        [1] = "Kannonbiraki Benihime Aratame",
+                                        [2] = unit
+                                    }
+                                    ReplicatedStorage:WaitForChild("Remote"):WaitForChild("UnitAbility"):FireServer(unpack(args))
+                                end
+                            end
+                        end
+                    end
+                end)
+                task.wait(1) 
+            end
+        end)
+    end
+end)
+
+-- // LOBBY MANAGER //
 Tabs.Lobby:AddSection("Auto Game Functions")
 Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false })
 Tabs.Lobby:AddToggle("AutoNext", {Title = "Auto Next", Default = false })
@@ -215,6 +251,7 @@ Tabs.Lobby:AddToggle("AutoCreateRoom", {Title = "Auto Join/Create", Default = fa
     end
 end)
 
+-- // CONFIG & INIT //
 SaveManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
@@ -228,6 +265,7 @@ if getgenv().AutoResumeState then
     task.delay(2, function() if currentMacroName == "" then local f=GetMacroFiles(); if #f>0 then LoadMacro(f[1]) end end; playMacro() end)
 end
 
+-- // PLAY MACRO //
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
@@ -274,6 +312,7 @@ function playMacro()
     end)
 end
 
+-- // GAME STATE LOOP //
 task.spawn(function()
     local w = false
     while task.wait(0.5) do
