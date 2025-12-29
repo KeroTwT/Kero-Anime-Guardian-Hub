@@ -1,3 +1,4 @@
+-- // DỌN DẸP SCRIPT CŨ //
 if getgenv().StopAllMacros then
     getgenv().StopAllMacros = true
     task.wait(0.2)
@@ -21,6 +22,7 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
+-- // MOBILE ICON THÔNG MINH //
 task.spawn(function()
     local IconImageID = "rbxassetid://80972749206953" 
     local CoreGui = game:GetService("CoreGui")
@@ -82,6 +84,7 @@ local isRecording = false
 local isPlaying = getgenv().AutoResumeState 
 local currentMacroData = {} 
 local currentMacroName = "" 
+local startTime = 0
 local playbackMode = "Hybrid" 
 
 local AllowedRemotes = { ["SpawnUnit"]=true, ["SellUnit"]=true, ["UpgradeUnit"]=true, ["UnitAbility"]=true, ["BuyMeat"]=true, ["FeedAll"]=true, ["SkipEvent"]=true, ["x2Event"]=true }
@@ -138,14 +141,24 @@ local Tabs = {
 }
 local Options = Fluent.Options
 
+-- // MACRO UI (ĐÃ SỬA LỖI MẤT STATUS) //
+local StatusParagraph = Tabs.Macro:AddParagraph({ Title = "Status: Idle", Content = "Waiting..." }) -- Đã thêm lại dòng này
+
+local function UpdateStatus(status, details)
+    if StatusParagraph then
+        StatusParagraph:SetTitle("Status: " .. status)
+        StatusParagraph:SetDesc(details or "")
+    end
+end
+
 Tabs.Macro:AddInput("InputMacroName", {Title = "New Macro Name", Placeholder = "MapName_Diff"})
 Tabs.Macro:AddButton({Title = "Create New File", Callback = function() local n=Options.InputMacroName.Value; if n~="" then currentMacroName=n; currentMacroData={}; SaveCurrentMacro(); Options.FileSelect:SetValues(GetMacroFiles()); Options.FileSelect:SetValue(n) end end})
 Tabs.Macro:AddDropdown("FileSelect", {Title = "Select File", Values = GetMacroFiles(), Default = 1, Callback = function(v) if v then LoadMacro(v) end end})
 task.delay(1, function() local f=GetMacroFiles(); if #f>0 then LoadMacro(f[1]); Options.FileSelect:SetValue(f[1]) end end)
 Tabs.Macro:AddButton({Title = "Refresh / Delete", Callback = function() if currentMacroName~="" and isfile(MACRO_FOLDER.."/"..currentMacroName..".json") then delfile(MACRO_FOLDER.."/"..currentMacroName..".json"); currentMacroName=""; currentMacroData={}; Options.FileSelect:SetValues(GetMacroFiles()); Options.FileSelect:SetValue(nil) else Options.FileSelect:SetValues(GetMacroFiles()) end end})
-Tabs.Macro:AddToggle("RecordToggle", {Title = "Record", Default = false }):OnChanged(function(v) if v then isPlaying=false; isRecording=true; currentMacroData={}; startTime=tick() else isRecording=false; SaveCurrentMacro() end end)
+Tabs.Macro:AddToggle("RecordToggle", {Title = "Record", Default = false }):OnChanged(function(v) if v then isPlaying=false; isRecording=true; currentMacroData={}; startTime=tick(); UpdateStatus("Recording", "Started...") else isRecording=false; SaveCurrentMacro(); UpdateStatus("Stopped", "Saved.") end end)
 Tabs.Macro:AddDropdown("ModeSelect", {Title = "Mode", Values = {"Time", "Money", "Hybrid"}, Default = "Hybrid", Callback = function(v) playbackMode = v end})
-Tabs.Macro:AddToggle("PlayToggle", {Title = "Play", Default = getgenv().AutoResumeState}):OnChanged(function(v) getgenv().AutoResumeState = v; if v then isRecording=false; playMacro() else isPlaying=false end end)
+Tabs.Macro:AddToggle("PlayToggle", {Title = "Play", Default = getgenv().AutoResumeState}):OnChanged(function(v) getgenv().AutoResumeState = v; if v then isRecording=false; playMacro() else isPlaying=false; UpdateStatus("Stopped", "User Cancelled") end end)
 
 Tabs.Lobby:AddSection("Auto Game Functions")
 Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false })
@@ -173,7 +186,7 @@ local ModeList = {"Event Stage", "Resource Mode", "Raid Mode", "Legend Stages", 
 local DiffList = {"Normal", "Insane", "Nightmare", "Master", "Challenger", "Unique"}
 
 Tabs.Lobby:AddDropdown("RoomMode", {
-    Title = "Select Mode", Values = ModeList, Default = "Special Event",
+    Title = "Select Mode (Filter)", Values = ModeList, Default = "Special Event",
     Callback = function(Value) if Options.RoomStage then Options.RoomStage:SetValues(MapData[Value] or {}); Options.RoomStage:SetValue(MapData[Value][1]) end end
 })
 Tabs.Lobby:AddDropdown("RoomStage", {Title = "Select Stage", Values = MapData["Special Event"], Default = "Summer Island"})
