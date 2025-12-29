@@ -186,7 +186,7 @@ local ModeList = {"Event Stage", "Resource Mode", "Raid Mode", "Legend Stages", 
 local DiffList = {"Normal", "Insane", "Nightmare", "Master", "Challenger", "Unique"}
 
 Tabs.Lobby:AddDropdown("RoomMode", {
-    Title = "Select Mode (Filter)", Values = ModeList, Default = "Special Event",
+    Title = "Select Mode", Values = ModeList, Default = "Special Event",
     Callback = function(Value) if Options.RoomStage then Options.RoomStage:SetValues(MapData[Value] or {}); Options.RoomStage:SetValue(MapData[Value][1]) end end
 })
 Tabs.Lobby:AddDropdown("RoomStage", {Title = "Select Stage", Values = MapData["Special Event"], Default = "Summer Island"})
