@@ -15,6 +15,87 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
+-- ///////////////////////////////////////////////////////////
+-- /// MOBILE TOGGLE BUTTON (PHIÊN BẢN BẠN ĐÃ TEST OK) ///
+-- ///////////////////////////////////////////////////////////
+task.spawn(function()
+    -- Đã cập nhật lại ID Theradum của bạn
+    local IconImageID = "rbxassetid://80972749206953" 
+
+    local CoreGui = game:GetService("CoreGui")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    
+    local ToggleGui = Instance.new("ScreenGui")
+    local ToggleBtn = Instance.new("ImageButton")
+    local UICorner = Instance.new("UICorner")
+    local UIStroke = Instance.new("UIStroke")
+
+    -- Thử đưa GUI vào CoreGui (ưu tiên) hoặc PlayerGui
+    pcall(function()
+        ToggleGui.Parent = CoreGui
+    end)
+    if not ToggleGui.Parent then ToggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+
+    ToggleGui.Name = "FluentMobileToggle_Fix_Duc"
+    ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    ToggleGui.DisplayOrder = 10000 -- Đảm bảo nút nằm trên cùng
+
+    ToggleBtn.Name = "TheradumBtn"
+    ToggleBtn.Parent = ToggleGui
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    ToggleBtn.Position = UDim2.new(0.02, 0, 0.45, 0) -- Vị trí bên trái giữa màn hình
+    ToggleBtn.Size = UDim2.fromOffset(55, 55)
+    ToggleBtn.Image = IconImageID 
+    ToggleBtn.Active = true
+    ToggleBtn.Draggable = true 
+
+    UICorner.CornerRadius = UDim.new(1, 0)
+    UICorner.Parent = ToggleBtn
+
+    UIStroke.Parent = ToggleBtn
+    UIStroke.Thickness = 2
+    UIStroke.Color = Color3.fromRGB(255, 105, 180) -- Viền hồng
+
+    -- HÀM TÌM VÀ BẬT/TẮT HUB (Code gốc bạn gửi)
+    local function ToggleFluentUI()
+        local found = false
+        -- Hàm con để quét GUI
+        local function scan(parent)
+            for _, gui in pairs(parent:GetChildren()) do
+                if gui:IsA("ScreenGui") and gui.Name ~= ToggleGui.Name then
+                    -- Fluent thường có 1 Frame chính, ta tìm TextLabel có chữ "AWTD" để xác nhận đúng là Hub mình cần
+                    local descendants = gui:GetDescendants()
+                    for _, d in pairs(descendants) do
+                        if d:IsA("TextLabel") and (string.find(d.Text, "AWTD") or string.find(d.Text, "Fluent")) then
+                            gui.Enabled = not gui.Enabled
+                            found = true
+                            return true -- Dừng vòng lặp khi tìm thấy
+                        end
+                    end
+                end
+            end
+            return false
+        end
+
+        -- Quét CoreGui trước
+        if not scan(CoreGui) then
+            -- Nếu không thấy, quét PlayerGui
+            scan(LocalPlayer:WaitForChild("PlayerGui"))
+        end
+        
+        -- Nếu vẫn không được (phòng hờ), thử dùng lại cách giả lập phím
+        if not found then
+            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightControl, false, game)
+            task.wait(0.05)
+            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightControl, false, game)
+        end
+    end
+
+    ToggleBtn.MouseButton1Click:Connect(ToggleFluentUI)
+end)
+-- ///////////////////////////////////////////////////////////
+
 local MACRO_FOLDER = "AWTD_Macros_Kero"
 local CALC_DELAY = 0.5 
 
@@ -284,6 +365,7 @@ function playMacro()
                     elseif act.Action == "Ability" and R.Ability then local u = findUnitByCFrame(act.CFrame); if u then SmartFire(R.Ability, {act.SkillName, u}) end
                     elseif act.Action == "BuyMeat" and R.BuyMeat then SmartFire(R.BuyMeat, act.Args or {}) 
                     elseif act.Action == "FeedAll" and R.FeedAll then SmartFire(R.FeedAll, {})
+                    elseif act.Action == "SkipEvent" and R.Skip then SmartFire(R.Skip, {})
                     elseif act.Action == "SkipWave" and R.Skip then SmartFire(R.Skip, {})
                     elseif act.Action == "AutoSpeed" and R.Speed then SmartFire(R.Speed, {})
                     end
