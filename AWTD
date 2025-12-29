@@ -1,3 +1,9 @@
+if getgenv().StopAllMacros then
+    getgenv().StopAllMacros = true
+    task.wait(0.2)
+end
+getgenv().StopAllMacros = false
+
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
@@ -15,36 +21,35 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- ///////////////////////////////////////////////////////////
--- /// MOBILE TOGGLE BUTTON (PHIÊN BẢN BẠN ĐÃ TEST OK) ///
--- ///////////////////////////////////////////////////////////
 task.spawn(function()
-    -- Đã cập nhật lại ID Theradum của bạn
     local IconImageID = "rbxassetid://80972749206953" 
-
     local CoreGui = game:GetService("CoreGui")
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
     
+    if CoreGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then
+        CoreGui.FluentMobileToggle_Fix_Duc:Destroy()
+    end
+    if LocalPlayer.PlayerGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then
+        LocalPlayer.PlayerGui.FluentMobileToggle_Fix_Duc:Destroy()
+    end
+
     local ToggleGui = Instance.new("ScreenGui")
     local ToggleBtn = Instance.new("ImageButton")
     local UICorner = Instance.new("UICorner")
     local UIStroke = Instance.new("UIStroke")
 
-    -- Thử đưa GUI vào CoreGui (ưu tiên) hoặc PlayerGui
-    pcall(function()
-        ToggleGui.Parent = CoreGui
-    end)
+    pcall(function() ToggleGui.Parent = CoreGui end)
     if not ToggleGui.Parent then ToggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
 
     ToggleGui.Name = "FluentMobileToggle_Fix_Duc"
     ToggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-    ToggleGui.DisplayOrder = 10000 -- Đảm bảo nút nằm trên cùng
+    ToggleGui.DisplayOrder = 10000 
 
     ToggleBtn.Name = "TheradumBtn"
     ToggleBtn.Parent = ToggleGui
     ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
-    ToggleBtn.Position = UDim2.new(0.02, 0, 0.45, 0) -- Vị trí bên trái giữa màn hình
+    ToggleBtn.Position = UDim2.new(0.02, 0, 0.45, 0) 
     ToggleBtn.Size = UDim2.fromOffset(55, 55)
     ToggleBtn.Image = IconImageID 
     ToggleBtn.Active = true
@@ -55,46 +60,28 @@ task.spawn(function()
 
     UIStroke.Parent = ToggleBtn
     UIStroke.Thickness = 2
-    UIStroke.Color = Color3.fromRGB(255, 105, 180) -- Viền hồng
+    UIStroke.Color = Color3.fromRGB(255, 105, 180)
 
-    -- HÀM TÌM VÀ BẬT/TẮT HUB (Code gốc bạn gửi)
-    local function ToggleFluentUI()
-        local found = false
-        -- Hàm con để quét GUI
-        local function scan(parent)
-            for _, gui in pairs(parent:GetChildren()) do
-                if gui:IsA("ScreenGui") and gui.Name ~= ToggleGui.Name then
-                    -- Fluent thường có 1 Frame chính, ta tìm TextLabel có chữ "AWTD" để xác nhận đúng là Hub mình cần
-                    local descendants = gui:GetDescendants()
-                    for _, d in pairs(descendants) do
-                        if d:IsA("TextLabel") and (string.find(d.Text, "AWTD") or string.find(d.Text, "Fluent")) then
-                            gui.Enabled = not gui.Enabled
-                            found = true
-                            return true -- Dừng vòng lặp khi tìm thấy
-                        end
-                    end
-                end
-            end
-            return false
-        end
-
-        -- Quét CoreGui trước
-        if not scan(CoreGui) then
-            -- Nếu không thấy, quét PlayerGui
-            scan(LocalPlayer:WaitForChild("PlayerGui"))
-        end
+    ToggleBtn.MouseButton1Click:Connect(function()
+        local bind = Enum.KeyCode.RightControl
         
-        -- Nếu vẫn không được (phòng hờ), thử dùng lại cách giả lập phím
-        if not found then
-            VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.RightControl, false, game)
-            task.wait(0.05)
-            VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.RightControl, false, game)
+        if Fluent.Options.MenuKeybind and Fluent.Options.MenuKeybind.Value then
+            bind = Fluent.Options.MenuKeybind.Value
+        elseif Fluent.Options.FluentMenuKeybind and Fluent.Options.FluentMenuKeybind.Value then
+            bind = Fluent.Options.FluentMenuKeybind.Value
+        elseif Window.MinimizeKey then
+            bind = Window.MinimizeKey
         end
-    end
 
-    ToggleBtn.MouseButton1Click:Connect(ToggleFluentUI)
+        if typeof(bind) == "string" then
+            bind = Enum.KeyCode[bind]
+        end
+
+        VirtualInputManager:SendKeyEvent(true, bind, false, game)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(false, bind, false, game)
+    end)
 end)
--- ///////////////////////////////////////////////////////////
 
 local MACRO_FOLDER = "AWTD_Macros_Kero"
 local CALC_DELAY = 0.5 
@@ -104,8 +91,10 @@ local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local LocalPlayer = Players.LocalPlayer
 
+if getgenv().AutoResumeState == nil then getgenv().AutoResumeState = false end
+
 local isRecording = false
-local isPlaying = false
+local isPlaying = getgenv().AutoResumeState 
 local currentMacroData = {} 
 local currentMacroName = "" 
 local startTime = 0
@@ -159,13 +148,10 @@ local function firebutton(Button)
     if not Button then return end
     local oldNav = GuiService.GuiNavigationEnabled
     local oldSel = GuiService.SelectedObject
-
     GuiService.GuiNavigationEnabled = true
     GuiService.SelectedObject = Button
-    
     VirtualInputManager:SendKeyEvent(true, "Return", false, nil)
     VirtualInputManager:SendKeyEvent(false, "Return", false, nil)
-    
     task.wait(0.05)
     GuiService.GuiNavigationEnabled = oldNav
     GuiService.SelectedObject = oldSel
@@ -275,8 +261,18 @@ end)
 
 Tabs.Macro:AddDropdown("ModeSelect", {Title = "Mode", Values = {"Time", "Money", "Hybrid"}, Default = "Hybrid", Callback = function(v) playbackMode = v end})
 
-Tabs.Macro:AddToggle("PlayToggle", {Title = "Play", Default = false }):OnChanged(function(v)
-    if v then isRecording=false; playMacro() else isPlaying=false; UpdateStatus("Stopped", "User Cancelled") end
+Tabs.Macro:AddToggle("PlayToggle", {
+    Title = "Play", 
+    Default = getgenv().AutoResumeState 
+}):OnChanged(function(v)
+    getgenv().AutoResumeState = v 
+    if v then 
+        isRecording=false; 
+        playMacro() 
+    else 
+        isPlaying=false; 
+        UpdateStatus("Stopped", "User Cancelled") 
+    end
 end)
 
 Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false })
@@ -325,6 +321,16 @@ InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 Window:SelectTab(1)
 SaveManager:LoadAutoloadConfig()
 
+if getgenv().AutoResumeState then
+    task.delay(2, function()
+        if currentMacroName == "" then 
+            local f = GetMacroFiles()
+            if #f > 0 then LoadMacro(f[1]) end 
+        end
+        playMacro()
+    end)
+end
+
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
@@ -341,6 +347,8 @@ function playMacro()
         }
 
         while isPlaying do
+            if getgenv().StopAllMacros then break end
+
             local eff = Workspace:FindFirstChild("Effect")
             if eff and (eff:FindFirstChild("Gameover") or eff:FindFirstChild("Victory")) then
                 isPlaying = false
@@ -386,6 +394,8 @@ task.spawn(function()
     local waitingForReplay = false
 
     while task.wait(0.5) do
+        if getgenv().StopAllMacros then break end
+
         local eff = Workspace:FindFirstChild("Effect")
         local gameover = eff and eff:FindFirstChild("Gameover")
         local victory = eff and eff:FindFirstChild("Victory")
