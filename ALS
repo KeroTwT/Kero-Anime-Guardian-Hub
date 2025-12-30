@@ -1,0 +1,102 @@
+local Rayfield = loadstring(game:HttpGet('https://sirius.menu/rayfield'))()
+
+local Window = Rayfield:CreateWindow({
+    Name = "Anime Last Stand Sub-Script | Kero:33",
+    LoadingTitle = "Loading...",
+    LoadingSubtitle = "MOEWTIE",
+    ConfigurationSaving = {
+        Enabled = true,
+        FolderName = "ALS_Config_Kero",
+        FileName = "Config"
+    },
+    Discord = {
+        Enabled = false,
+        Invite = "noinvitelink",
+        RememberJoins = true 
+    },
+    KeySystem = false,
+})
+
+local Tab = Window:CreateTab("Main", 4483362458)
+
+-- Global variables
+getgenv().SelectedCrate = "ShinyWinterCrate"
+getgenv().AutoCraft = false
+getgenv().AutoOpen = false
+
+-- Remotes
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Remotes = ReplicatedStorage:WaitForChild("Remotes", 9e9)
+local CraftRemote = Remotes:WaitForChild("AttemptEventCraft", 9e9)
+local OpenRemote = Remotes:WaitForChild("OpenCrate", 9e9)
+
+-- SECTION 1: SELECTION
+Tab:CreateSection("Crate Settings")
+
+Tab:CreateDropdown({
+    Name = "Select Crate Type",
+    Options = {"ShinyWinterCrate", "SnowflakeWinterCrate"},
+    CurrentOption = "ShinyWinterCrate",
+    Flag = "CrateSelect", 
+    Callback = function(Option)
+        getgenv().SelectedCrate = Option[1]
+    end,
+})
+
+-- SECTION 2: CRAFTING
+Tab:CreateSection("Crafting")
+
+Tab:CreateToggle({
+    Name = "Auto Craft (0.1s Delay)",
+    CurrentValue = false,
+    Flag = "AutoCraftToggle", 
+    Callback = function(Value)
+        getgenv().AutoCraft = Value
+        
+        if Value then
+            task.spawn(function()
+                while getgenv().AutoCraft do
+                    if getgenv().SelectedCrate then
+                        local args = {
+                            [1] = getgenv().SelectedCrate
+                        }
+                        CraftRemote:FireServer(unpack(args))
+                    end
+                    task.wait(0.1)
+                end
+            end)
+        end
+    end,
+})
+
+-- SECTION 3: OPENING
+Tab:CreateSection("Opening")
+
+Tab:CreateToggle({
+    Name = "Auto Open Selected Crate",
+    CurrentValue = false,
+    Flag = "AutoOpenToggle", 
+    Callback = function(Value)
+        getgenv().AutoOpen = Value
+        
+        if Value then
+            task.spawn(function()
+                while getgenv().AutoOpen do
+                    if getgenv().SelectedCrate then
+                        local args = {
+                            [1] = getgenv().SelectedCrate,
+                            [2] = 6 
+                        }
+                        pcall(function()
+                            OpenRemote:InvokeServer(unpack(args))
+                        end)
+                    end
+                    task.wait(0.5)
+                end
+            end)
+        end
+    end,
+})
+
+-- Tự động tải lại config cũ (nếu có) khi chạy script
+Rayfield:LoadConfiguration()
