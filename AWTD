@@ -125,7 +125,18 @@ mt.__namecall = newcclosure(function(self, ...)
             if rName == "SpawnUnit" then task.wait(CALC_DELAY); table.insert(currentMacroData, {Action="Place", Time=currentTime, Cost=math.max(0, preCash - getCash()), UnitName=args[1], CFrame=args[2], Slot=args[3], Data=args[4]}); Fluent:Notify({Title="Rec", Content="Place", Duration=1})
             elseif rName == "SellUnit" then local u=args[1]; if u and u.PrimaryPart then table.insert(currentMacroData, {Action="Sell", Time=currentTime, Cost=0, CFrame=u.PrimaryPart.CFrame}); Fluent:Notify({Title="Rec", Content="Sell", Duration=1}) end
             elseif rName == "UpgradeUnit" then task.wait(CALC_DELAY); local u=args[1]; if u and u.PrimaryPart then table.insert(currentMacroData, {Action="Upgrade", Time=currentTime, Cost=math.max(0, preCash - getCash()), CFrame=u.PrimaryPart.CFrame}); Fluent:Notify({Title="Rec", Content="Upgrade", Duration=1}) end
-            elseif rName == "UnitAbility" then local u=args[2]; if u and u.PrimaryPart then table.insert(currentMacroData, {Action="Ability", Time=currentTime, Cost=0, SkillName=args[1], CFrame=u.PrimaryPart.CFrame}) end
+            elseif rName == "UnitAbility" then 
+                local u = args[2]
+                if u and u.PrimaryPart then 
+                    table.insert(currentMacroData, {
+                        Action="Ability", 
+                        Time=currentTime, 
+                        Cost=0, 
+                        SkillName=args[1], 
+                        CFrame=u.PrimaryPart.CFrame,
+                        AbilityData=args[3]
+                    }) 
+                end
             elseif rName == "BuyMeat" then task.wait(CALC_DELAY); table.insert(currentMacroData, {Action="BuyMeat", Time=currentTime, Cost=math.max(0, preCash - getCash()), Args=args}); Fluent:Notify({Title="Rec", Content="Buy Meat", Duration=1})
             elseif rName == "FeedAll" then table.insert(currentMacroData, {Action="FeedAll", Time=currentTime, Cost=0})
             elseif rName == "SkipEvent" then table.insert(currentMacroData, {Action="SkipWave", Time=currentTime, Cost=0})
@@ -295,7 +306,15 @@ function playMacro()
                     if act.Action == "Place" and Rem.Spawn then SmartFire(Rem.Spawn, {act.UnitName, act.CFrame, act.Slot, act.Data})
                     elseif act.Action == "Upgrade" and Rem.Upgrade then local u=findUnitByCFrame(act.CFrame); if u then SmartFire(Rem.Upgrade, {u}) end
                     elseif act.Action == "Sell" and Rem.Sell then local u=findUnitByCFrame(act.CFrame); if u then SmartFire(Rem.Sell, {u}) end
-                    elseif act.Action == "Ability" and Rem.Ability then local u=findUnitByCFrame(act.CFrame); if u then SmartFire(Rem.Ability, {act.SkillName, u}) end
+                    elseif act.Action == "Ability" and Rem.Ability then 
+                        local u=findUnitByCFrame(act.CFrame); 
+                        if u then 
+                            if act.AbilityData then
+                                SmartFire(Rem.Ability, {act.SkillName, u, act.AbilityData})
+                            else
+                                SmartFire(Rem.Ability, {act.SkillName, u}) 
+                            end
+                        end 
                     elseif act.Action == "BuyMeat" and Rem.BuyMeat then SmartFire(Rem.BuyMeat, act.Args or {}) 
                     elseif act.Action == "FeedAll" and Rem.FeedAll then SmartFire(Rem.FeedAll, {})
                     elseif act.Action == "SkipEvent" and Rem.Skip then SmartFire(Rem.Skip, {})
