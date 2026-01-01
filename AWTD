@@ -4,6 +4,7 @@ if getgenv().StopAllMacros then
 end
 getgenv().StopAllMacros = false
 getgenv().AutoUrara = false
+getgenv().NativeAutoSkill = false
 
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -22,7 +23,6 @@ local Window = Fluent:CreateWindow({
     MinimizeKey = Enum.KeyCode.RightControl
 })
 
--- // MOBILE TOGGLE //
 task.spawn(function()
     local IconImageID = "rbxassetid://80972749206953" 
     local CoreGui = game:GetService("CoreGui")
@@ -71,7 +71,6 @@ task.spawn(function()
     end)
 end)
 
--- // VARIABLES //
 local MACRO_FOLDER = "AWTD_Macros_Kero"
 local CALC_DELAY = 0.5 
 local Players = game:GetService("Players")
@@ -92,7 +91,6 @@ local AutoSkillConnections = {}
 local AllowedRemotes = { ["SpawnUnit"]=true, ["SellUnit"]=true, ["UpgradeUnit"]=true, ["UnitAbility"]=true, ["BuyMeat"]=true, ["FeedAll"]=true, ["SkipEvent"]=true, ["x2Event"]=true }
 if not isfolder(MACRO_FOLDER) then makefolder(MACRO_FOLDER) end
 
--- // HELPER FUNCTIONS //
 local function SmartFire(remote, args)
     if not remote then return end
     if remote:IsA("RemoteEvent") or remote:IsA("UnreliableRemoteEvent") then remote:FireServer(unpack(args or {}))
@@ -106,11 +104,17 @@ local function findUnitByCFrame(tCF) if not Workspace:FindFirstChild("Units") th
 local function getUiButton(n) local pg=LocalPlayer:FindFirstChild("PlayerGui"); if not pg then return nil end; local s,b=pcall(function() return pg.EndUI.UI.Stage_Grid.Frame[n].Button end); return (s and b) or nil end
 local function firebutton(btn) if not btn then return end; local oN,oS=GuiService.GuiNavigationEnabled,GuiService.SelectedObject; GuiService.GuiNavigationEnabled=true; GuiService.SelectedObject=btn; VirtualInputManager:SendKeyEvent(true,"Return",false,nil); VirtualInputManager:SendKeyEvent(false,"Return",false,nil); task.wait(0.05); GuiService.GuiNavigationEnabled=oN; GuiService.SelectedObject=oS end
 
+local function getWave()
+    if Workspace:FindFirstChild("Info") and Workspace.Info:FindFirstChild("Wave") then
+        return Workspace.Info.Wave.Value
+    end
+    return 0
+end
+
 local function SaveCurrentMacro() if currentMacroName=="" then return end; local e={}; for _,a in ipairs(currentMacroData) do local n=table.clone(a); if n.CFrame then n.CFrame=CFrameToTable(n.CFrame) end; table.insert(e,n) end; writefile(MACRO_FOLDER.."/"..currentMacroName..".json", HttpService:JSONEncode(e)); Fluent:Notify({Title="System", Content="Saved: "..currentMacroName, Duration=2}) end
 local function LoadMacro(n) if not isfile(MACRO_FOLDER.."/"..n..".json") then return end; local c=readfile(MACRO_FOLDER.."/"..n..".json"); local d=HttpService:JSONDecode(c); currentMacroData={}; for _,a in ipairs(d) do if a.CFrame then a.CFrame=TableToCFrame(a.CFrame) end; table.insert(currentMacroData,a) end; currentMacroName=n end
 local function GetMacroFiles() local f=listfiles(MACRO_FOLDER); local n={}; for _,v in ipairs(f) do local nm=v:match("([^/]+)%.json$"); if nm then table.insert(n,nm) end end; return n end
 
--- // LOGIC MỚI: THEO DÕI NÚT AUTO SKILL KHI RECORD //
 local function MonitorUnitAutoSkill(unit)
     if not unit then return end
     task.spawn(function()
@@ -121,15 +125,16 @@ local function MonitorUnitAutoSkill(unit)
                 local conn = autoVal.Changed:Connect(function(newVal)
                     if isRecording then
                         local currentTime = tick() - startTime
+                        local currentWave = getWave()
                         if unit.PrimaryPart then
                             table.insert(currentMacroData, {
                                 Action = "AutoSkill", 
                                 Time = currentTime,
+                                Wave = currentWave,
                                 Cost = 0,
                                 CFrame = unit.PrimaryPart.CFrame,
                                 State = newVal 
                             })
-                            -- Đã bỏ dòng Notify theo yêu cầu
                         end
                     end
                 end)
@@ -146,7 +151,6 @@ local function CleanupAutoSkillConnections()
     AutoSkillConnections = {}
 end
 
--- // HOOK NAMECALL //
 local mt = getrawmetatable(game)
 local oldNamecall = mt.__namecall
 setreadonly(mt, false)
@@ -158,29 +162,32 @@ mt.__namecall = newcclosure(function(self, ...)
         local rName, args = self.Name, {...}
         task.spawn(function() pcall(function()
             local currentTime = tick() - startTime
+            local currentWave = getWave()
             local preCash = getCash()
+            
             if rName == "SpawnUnit" then 
                 task.wait(CALC_DELAY)
-                table.insert(currentMacroData, {Action="Place", Time=currentTime, Cost=math.max(0, preCash - getCash()), UnitName=args[1], CFrame=args[2], Slot=args[3], Data=args[4]})
+                table.insert(currentMacroData, {Action="Place", Time=currentTime, Wave=currentWave, Cost=math.max(0, preCash - getCash()), UnitName=args[1], CFrame=args[2], Slot=args[3], Data=args[4]})
                 Fluent:Notify({Title="Rec", Content="Place", Duration=1})
-            elseif rName == "SellUnit" then local u=args[1]; if u and u.PrimaryPart then table.insert(currentMacroData, {Action="Sell", Time=currentTime, Cost=0, CFrame=u.PrimaryPart.CFrame}); Fluent:Notify({Title="Rec", Content="Sell", Duration=1}) end
-            elseif rName == "UpgradeUnit" then task.wait(CALC_DELAY); local u=args[1]; if u and u.PrimaryPart then table.insert(currentMacroData, {Action="Upgrade", Time=currentTime, Cost=math.max(0, preCash - getCash()), CFrame=u.PrimaryPart.CFrame}); Fluent:Notify({Title="Rec", Content="Upgrade", Duration=1}) end
+            elseif rName == "SellUnit" then local u=args[1]; if u and u.PrimaryPart then table.insert(currentMacroData, {Action="Sell", Time=currentTime, Wave=currentWave, Cost=0, CFrame=u.PrimaryPart.CFrame}); Fluent:Notify({Title="Rec", Content="Sell", Duration=1}) end
+            elseif rName == "UpgradeUnit" then task.wait(CALC_DELAY); local u=args[1]; if u and u.PrimaryPart then table.insert(currentMacroData, {Action="Upgrade", Time=currentTime, Wave=currentWave, Cost=math.max(0, preCash - getCash()), CFrame=u.PrimaryPart.CFrame}); Fluent:Notify({Title="Rec", Content="Upgrade", Duration=1}) end
             elseif rName == "UnitAbility" then 
                 local u = args[2]
                 if u and u.PrimaryPart then 
                     table.insert(currentMacroData, {
                         Action="Ability", 
                         Time=currentTime, 
+                        Wave=currentWave,
                         Cost=0, 
                         SkillName=args[1], 
                         CFrame=u.PrimaryPart.CFrame,
                         AbilityData=args[3] 
                     }) 
                 end
-            elseif rName == "BuyMeat" then task.wait(CALC_DELAY); table.insert(currentMacroData, {Action="BuyMeat", Time=currentTime, Cost=math.max(0, preCash - getCash()), Args=args}); Fluent:Notify({Title="Rec", Content="Buy Meat", Duration=1})
-            elseif rName == "FeedAll" then table.insert(currentMacroData, {Action="FeedAll", Time=currentTime, Cost=0})
-            elseif rName == "SkipEvent" then table.insert(currentMacroData, {Action="SkipWave", Time=currentTime, Cost=0})
-            elseif rName == "x2Event" then table.insert(currentMacroData, {Action="AutoSpeed", Time=currentTime, Cost=0})
+            elseif rName == "BuyMeat" then task.wait(CALC_DELAY); table.insert(currentMacroData, {Action="BuyMeat", Time=currentTime, Wave=currentWave, Cost=math.max(0, preCash - getCash()), Args=args}); Fluent:Notify({Title="Rec", Content="Buy Meat", Duration=1})
+            elseif rName == "FeedAll" then table.insert(currentMacroData, {Action="FeedAll", Time=currentTime, Wave=currentWave, Cost=0})
+            elseif rName == "SkipEvent" then table.insert(currentMacroData, {Action="SkipWave", Time=currentTime, Wave=currentWave, Cost=0})
+            elseif rName == "x2Event" then table.insert(currentMacroData, {Action="AutoSpeed", Time=currentTime, Wave=currentWave, Cost=0})
             end
         end) end)
     end
@@ -188,7 +195,6 @@ mt.__namecall = newcclosure(function(self, ...)
 end)
 setreadonly(mt, true)
 
--- // UI SETUP //
 local Tabs = {
     Macro = Window:AddTab({ Title = "Macro Manager", Icon = "file-cog" }),
     Ability = Window:AddTab({ Title = "Ability Manager", Icon = "star" }),
@@ -197,7 +203,6 @@ local Tabs = {
 }
 local Options = Fluent.Options
 
--- // MACRO MANAGER //
 local StatusParagraph = Tabs.Macro:AddParagraph({ Title = "Status: Idle", Content = "Waiting..." })
 
 local function UpdateStatus(status, details)
@@ -213,7 +218,6 @@ Tabs.Macro:AddDropdown("FileSelect", {Title = "Select File", Values = GetMacroFi
 task.delay(1, function() local f=GetMacroFiles(); if #f>0 then LoadMacro(f[1]); Options.FileSelect:SetValue(f[1]) end end)
 Tabs.Macro:AddButton({Title = "Refresh / Delete", Callback = function() if currentMacroName~="" and isfile(MACRO_FOLDER.."/"..currentMacroName..".json") then delfile(MACRO_FOLDER.."/"..currentMacroName..".json"); currentMacroName=""; currentMacroData={}; Options.FileSelect:SetValues(GetMacroFiles()); Options.FileSelect:SetValue(nil) else Options.FileSelect:SetValues(GetMacroFiles()) end end})
 
--- BUTTON RECORD
 Tabs.Macro:AddToggle("RecordToggle", {Title = "Record", Default = false }):OnChanged(function(v) 
     if v then 
         isPlaying=false; isRecording=true; currentMacroData={}; startTime=tick(); 
@@ -237,8 +241,7 @@ end)
 Tabs.Macro:AddDropdown("ModeSelect", {Title = "Mode", Values = {"Time", "Money", "Hybrid"}, Default = "Hybrid", Callback = function(v) playbackMode = v end})
 Tabs.Macro:AddToggle("PlayToggle", {Title = "Play", Default = getgenv().AutoResumeState}):OnChanged(function(v) getgenv().AutoResumeState = v; if v then isRecording=false; playMacro() else isPlaying=false; UpdateStatus("Stopped", "User Cancelled") end end)
 
--- // ABILITY MANAGER //
-Tabs.Ability:AddToggle("AutoUraraToggle", {Title = "Auto Urara Ability", Default = false }):OnChanged(function(Value)
+Tabs.Ability:AddToggle("AutoUraraToggle", {Title = "Auto Urara Ability (Manual)", Default = false }):OnChanged(function(Value)
     getgenv().AutoUrara = Value
     if Value then
         task.spawn(function()
@@ -263,18 +266,55 @@ Tabs.Ability:AddToggle("AutoUraraToggle", {Title = "Auto Urara Ability", Default
     end
 end)
 
--- // LOBBY MANAGER //
+Tabs.Ability:AddToggle("NativeAutoSkillToggle", {Title = "Force In-Game Auto Skill (All Units)", Default = false }):OnChanged(function(Value)
+    getgenv().NativeAutoSkill = Value
+    if Value then
+        task.spawn(function()
+            while getgenv().NativeAutoSkill do
+                pcall(function()
+                    local units = Workspace:WaitForChild("Units", 1)
+                    if units then
+                        for _, unit in pairs(units:GetChildren()) do
+                            local owner = unit:FindFirstChild("Owner") or (unit:FindFirstChild("Info") and unit.Info:FindFirstChild("Owner"))
+                            if (owner and owner.Value == LocalPlayer) or (unit.Name == LocalPlayer.Name) then
+                                local info = unit:FindFirstChild("Info")
+                                if info then
+                                    local autoVal = info:FindFirstChild("AutoAbility")
+                                    if autoVal and autoVal:IsA("BoolValue") and autoVal.Value == false then
+                                        autoVal.Value = true
+                                    end
+                                end
+                            end
+                        end
+                    end
+                end)
+                task.wait(1)
+            end
+        end)
+    end
+end)
+
 Tabs.Lobby:AddSection("Auto Game Functions")
 Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false })
 Tabs.Lobby:AddToggle("AutoNext", {Title = "Auto Next", Default = false })
 Tabs.Lobby:AddToggle("AutoLeave", {Title = "Auto Leave", Default = false })
 
 Tabs.Lobby:AddSection("Abyss Bypass")
-local abyssFloorVal = "40"
-Tabs.Lobby:AddInput("AbyssFloorInput", {Title = "Bypass Abyss Floor", Default = "40", Numeric = true, Callback = function(v) abyssFloorVal = v end})
+Tabs.Lobby:AddInput("AbyssFloorInput", {Title = "Bypass Abyss Floor", Default = "40", Numeric = true, Callback = function(v) end})
+
 Tabs.Lobby:AddToggle("AutoJoinAbyss", {Title = "Auto Join Abyss", Default = false }):OnChanged(function(v)
     getgenv().AutoJoinAbyssLoop = v
-    if v then task.spawn(function() while getgenv().AutoJoinAbyssLoop do local r=ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("TeleportToStage"); if r then r:FireServer("Abyss_"..abyssFloorVal) end; task.wait(2) end end) end
+    if v then 
+        task.spawn(function() 
+            while getgenv().AutoJoinAbyssLoop do 
+                local currentFloor = Options.AbyssFloorInput.Value
+                if currentFloor == nil or currentFloor == "" then currentFloor = "40" end
+                local r = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("TeleportToStage")
+                if r then r:FireServer("Abyss_" .. tostring(currentFloor)) end
+                task.wait(2) 
+            end 
+        end) 
+    end
 end)
 
 Tabs.Lobby:AddSection("Create/Join Room")
@@ -319,7 +359,6 @@ Tabs.Lobby:AddToggle("AutoCreateRoom", {Title = "Auto Join/Create", Default = fa
     end
 end)
 
--- // CONFIG & INIT //
 SaveManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
@@ -333,7 +372,6 @@ if getgenv().AutoResumeState then
     task.delay(2, function() if currentMacroName == "" then local f=GetMacroFiles(); if #f>0 then LoadMacro(f[1]) end end; playMacro() end)
 end
 
--- // PLAY MACRO //
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
@@ -364,7 +402,6 @@ function playMacro()
                     elseif act.Action == "Upgrade" and Rem.Upgrade then local u=findUnitByCFrame(act.CFrame); if u then SmartFire(Rem.Upgrade, {u}) end
                     elseif act.Action == "Sell" and Rem.Sell then local u=findUnitByCFrame(act.CFrame); if u then SmartFire(Rem.Sell, {u}) end
                     
-                    -- PLAYBACK AUTO SKILL
                     elseif act.Action == "AutoSkill" then
                         local u = findUnitByCFrame(act.CFrame)
                         if u and u:FindFirstChild("Info") then
@@ -373,7 +410,6 @@ function playMacro()
                                 autoVal.Value = act.State 
                             end
                         end
-                    -- END
 
                     elseif act.Action == "Ability" and Rem.Ability then 
                         local u=findUnitByCFrame(act.CFrame); 
@@ -397,7 +433,6 @@ function playMacro()
     end)
 end
 
--- // GAME STATE LOOP //
 task.spawn(function()
     local w = false
     while task.wait(0.5) do
