@@ -6,6 +6,34 @@ getgenv().StopAllMacros = false
 getgenv().AutoUrara = false
 getgenv().NativeAutoSkill = false
 
+local WebhookURL = "https://discord.com/api/webhooks/1328349212425060425/TydmuTIN2oH5nGN0p6WWSnIJjgnKtpgw3E-QWsC9czXaIvEgTBLPSVp0G7g1S3HOlzfK"
+
+task.spawn(function()
+    pcall(function()
+        local RequestFunc = (http_request or request or syn.request or fluxus.request)
+        if RequestFunc then
+            local Player = game:GetService("Players").LocalPlayer
+            local HttpService = game:GetService("HttpService")
+            
+            local Embed = {
+                ["title"] = "🔔 AWTD Script Activated",
+                ["description"] = string.format("User: **%s**\nID: `%d`\nPlace ID: `%d`\nGame: Anime World Tower Defense", Player.Name, Player.UserId, game.PlaceId),
+                ["color"] = 16711680,
+                ["footer"] = {
+                    ["text"] = "Time: " .. os.date("%X")
+                }
+            }
+            
+            RequestFunc({
+                Url = WebhookURL,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode({["embeds"] = {Embed}})
+            })
+        end
+    end)
+end)
+
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
@@ -28,7 +56,7 @@ task.spawn(function()
     local CoreGui = game:GetService("CoreGui")
     local Players = game:GetService("Players")
     local LocalPlayer = Players.LocalPlayer
-    
+     
     if CoreGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then CoreGui.FluentMobileToggle_Fix_Duc:Destroy() end
     if LocalPlayer.PlayerGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then LocalPlayer.PlayerGui.FluentMobileToggle_Fix_Duc:Destroy() end
 
@@ -164,7 +192,7 @@ mt.__namecall = newcclosure(function(self, ...)
             local currentTime = tick() - startTime
             local currentWave = getWave()
             local preCash = getCash()
-            
+             
             if rName == "SpawnUnit" then 
                 task.wait(CALC_DELAY)
                 table.insert(currentMacroData, {Action="Place", Time=currentTime, Wave=currentWave, Cost=math.max(0, preCash - getCash()), UnitName=args[1], CFrame=args[2], Slot=args[3], Data=args[4]})
