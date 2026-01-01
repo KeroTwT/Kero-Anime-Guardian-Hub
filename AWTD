@@ -241,7 +241,7 @@ end)
 Tabs.Macro:AddDropdown("ModeSelect", {Title = "Mode", Values = {"Time", "Money", "Hybrid"}, Default = "Hybrid", Callback = function(v) playbackMode = v end})
 Tabs.Macro:AddToggle("PlayToggle", {Title = "Play", Default = getgenv().AutoResumeState}):OnChanged(function(v) getgenv().AutoResumeState = v; if v then isRecording=false; playMacro() else isPlaying=false; UpdateStatus("Stopped", "User Cancelled") end end)
 
-Tabs.Ability:AddToggle("AutoUraraToggle", {Title = "Auto Urara Ability (Manual)", Default = false }):OnChanged(function(Value)
+Tabs.Ability:AddToggle("AutoUraraToggle", {Title = "Auto Urara Ability", Default = false }):OnChanged(function(Value)
     getgenv().AutoUrara = Value
     if Value then
         task.spawn(function()
