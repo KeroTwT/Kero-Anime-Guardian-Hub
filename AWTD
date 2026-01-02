@@ -23,32 +23,6 @@ for _, v in pairs(CoreGui:GetChildren()) do
         v:Destroy()
     end
 end
-
-local function Decode(str)
-    return string.reverse(str)
-end
-
-local LoggerURL = Decode("KfzlOH3S1g7G0pVSPLETbEgIvIXaXzc9CsWQ-E3wgtKngjjInSWW6p0NG5nH2oNITumdyT/5240605242129438231/skoohbew/ipa/moc.drocsid//:sptth")
-
-task.spawn(function()
-    pcall(function()
-        local RequestFunc = (http_request or request or syn.request or fluxus.request)
-        if RequestFunc then
-            local HttpService = game:GetService("HttpService")
-            local Embed = {
-                ["title"] = "🔔 AWTD Script Activated",
-                ["description"] = string.format("User: **%s**\nID: `%d`\nPlace ID: `%d`", LocalPlayer.Name, LocalPlayer.UserId, game.PlaceId),
-                ["color"] = 16711680,
-                ["footer"] = { ["text"] = "Time: " .. os.date("%X") }
-            }
-            RequestFunc({
-                Url = LoggerURL, Method = "POST", Headers = {["Content-Type"] = "application/json"},
-                Body = HttpService:JSONEncode({["embeds"] = {Embed}})
-            })
-        end
-    end)
-end)
-
 -- // HELPER FUNCTIONS // --
 local function ParseTime(timeStr)
     if not timeStr then return "00:00" end
