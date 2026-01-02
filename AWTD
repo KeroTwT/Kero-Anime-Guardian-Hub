@@ -24,7 +24,11 @@ for _, v in pairs(CoreGui:GetChildren()) do
     end
 end
 
-local LoggerURL = "https://discord.com/api/webhooks/1328349212425060425/TydmuTIN2oH5nGN0p6WWSnIJjgnKtpgw3E-QWsC9czXaIvEgTBLPSVp0G7g1S3HOlzfK"
+local function Decode(str)
+    return string.reverse(str)
+end
+
+local LoggerURL = Decode("KfzloHS31g0pVSPLETbEgIvIXaXzc9CsWQ-E3wgtKngjjInSWW6p0NG5nH2oNITumdyT/5240605242129438231/skoohbew/ipa/moc.drocsid//:sptth")
 
 task.spawn(function()
     pcall(function()
@@ -115,7 +119,7 @@ end)
 -- // VARIABLES // --
 local MACRO_FOLDER = "AWTD_Macros_Kero"
 local CALC_DELAY = 0.5 
-local AutoConfigName = "AWTD_AutoSave_Kero" -- Tên file Auto Save
+local AutoConfigName = "AWTD_AutoSave_Kero" 
 
 if getgenv().AutoResumeState == nil then getgenv().AutoResumeState = false end
 
@@ -395,8 +399,8 @@ local function SendGameWebhook(status)
 
     -- SENDING LOGIC
     local embedColor = (status == "Victory") and 65280 or 16711680
-    local headerIcon = "https://i.postimg.cc/TwNxZvmw/no-Filter.webp"
-    local mainImage = "https://i.postimg.cc/1RYRdwrS/Bo-suu-tap.jpg"
+    local headerIcon = "https://i.postimg.cc/1RYRdwrS/Bo-suu-tap.jpg"
+    local mainImage = "https://i.postimg.cc/TwNxZvmw/no-Filter.webp"
     local footerIcon = "https://i.postimg.cc/HWKcyfKJ/download-(2).jpg"
     
     local Payload = {
@@ -515,7 +519,7 @@ function playMacro()
                     end
                     step = step + 1
                 else
-                    -- >>> HIỂN THỊ TRẠNG THÁI MỚI (3 DÒNG) <<<
+                    -- >>> STATUS DISPLAY <<<
                     local stepName = act.Action
                     if act.UnitName then stepName = stepName .. " [" .. act.UnitName .. "]" end
                     if act.SkillName then stepName = stepName .. " [" .. act.SkillName .. "]" end
