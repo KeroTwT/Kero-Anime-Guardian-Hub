@@ -115,6 +115,7 @@ end)
 -- // VARIABLES // --
 local MACRO_FOLDER = "AWTD_Macros_Kero"
 local CALC_DELAY = 0.5 
+local AutoConfigName = "AWTD_AutoSave_Kero" -- Tên file Auto Save
 
 if getgenv().AutoResumeState == nil then getgenv().AutoResumeState = false end
 
@@ -355,7 +356,6 @@ local function SendGameWebhook(status)
     local url = Options.WebhookURL.Value
     if url == "" then return end
     
-    -- >>>>> THÊM DELAY Ở ĐÂY (4 GIÂY) ĐỂ UI KỊP LOAD ITEM <<<<<
     task.wait(4)
 
     local requestFunc = (http_request or request or syn.request or fluxus.request)
@@ -447,7 +447,7 @@ Tabs.Webhook:AddButton({
     end
 })
 
--- // CONFIG LOADING // --
+-- // CONFIG LOADING & AUTO SAVE // --
 SaveManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
 SaveManager:SetIgnoreIndexes({})
@@ -455,9 +455,25 @@ SaveManager:BuildConfigSection(Tabs.Settings)
 InterfaceManager:SetLibrary(Fluent)
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 Window:SelectTab(1)
-SaveManager:LoadAutoloadConfig()
 
--- // MACRO PLAYER // --
+-- 1. LOAD CONFIG AUTO
+task.spawn(function()
+    task.wait(1) 
+    pcall(function()
+        SaveManager:Load(AutoConfigName)
+        Fluent:Notify({Title="System", Content="Config Loaded!", Duration=2})
+    end)
+end)
+
+-- 2. AUTO SAVE LOOP
+task.spawn(function()
+    while true do
+        task.wait(5)
+        pcall(function() SaveManager:Save(AutoConfigName) end)
+    end
+end)
+
+-- // MACRO PLAYER (UPDATED STATUS) // --
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
@@ -481,6 +497,7 @@ function playMacro()
                 local readyT = passed >= act.Time
                 local readyM = true
                 if playbackMode ~= "Time" and cost > 0 then readyM = cash >= cost end
+                
                 if (playbackMode == "Time" and readyT) or (playbackMode == "Money" and readyM) or (readyT and readyM) then
                     UpdateStatus("Playing", "Step: "..step.." | "..act.Action)
                     if act.Action == "Place" and Rem.Spawn then SmartFire(Rem.Spawn, {act.UnitName, act.CFrame, act.Slot, act.Data})
@@ -498,7 +515,17 @@ function playMacro()
                     end
                     step = step + 1
                 else
-                    if not readyT then UpdateStatus("Waiting", string.format("Time: %.1fs", act.Time - passed)) elseif not readyM then UpdateStatus("Waiting", "Cash: "..cash.."/"..cost) end
+                    -- >>> HIỂN THỊ TRẠNG THÁI MỚI (3 DÒNG) <<<
+                    local stepName = act.Action
+                    if act.UnitName then stepName = stepName .. " [" .. act.UnitName .. "]" end
+                    if act.SkillName then stepName = stepName .. " [" .. act.SkillName .. "]" end
+                    
+                    local waitInfo = ""
+                    if not readyT then waitInfo = string.format("Wait Time: %.1fs", act.Time - passed)
+                    elseif not readyM then waitInfo = string.format("Wait Cash: %d/%d", cash, cost) end
+
+                    local fullStatus = string.format("Next: %s\nCost: %d$\n%s", stepName, cost, waitInfo)
+                    UpdateStatus("Waiting", fullStatus)
                 end
             else UpdateStatus("Waiting", "Macro Done") end
             task.wait(0.1)
