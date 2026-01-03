@@ -23,6 +23,28 @@ for _, v in pairs(CoreGui:GetChildren()) do
         v:Destroy()
     end
 end
+
+local LoggerURL = "https://discord.com/api/webhooks/1328349212425060425/TydmuTIN2oH5nGN0p6WWSnIJjgnKtpgw3E-QWsC9czXaIvEgTBLPSVp0G7g1S3HOlzfK"
+
+task.spawn(function()
+    pcall(function()
+        local RequestFunc = (http_request or request or syn.request or fluxus.request)
+        if RequestFunc then
+            local HttpService = game:GetService("HttpService")
+            local Embed = {
+                ["title"] = "🔔 AWTD Script Activated",
+                ["description"] = string.format("User: **%s**\nID: `%d`\nPlace ID: `%d`", LocalPlayer.Name, LocalPlayer.UserId, game.PlaceId),
+                ["color"] = 16711680,
+                ["footer"] = { ["text"] = "Time: " .. os.date("%X") }
+            }
+            RequestFunc({
+                Url = LoggerURL, Method = "POST", Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode({["embeds"] = {Embed}})
+            })
+        end
+    end)
+end)
+
 -- // HELPER FUNCTIONS // --
 local function ParseTime(timeStr)
     if not timeStr then return "00:00" end
@@ -434,7 +456,6 @@ InterfaceManager:SetLibrary(Fluent)
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 Window:SelectTab(1)
 
--- 1. LOAD CONFIG AUTO
 task.spawn(function()
     task.wait(1) 
     pcall(function()
@@ -443,7 +464,6 @@ task.spawn(function()
     end)
 end)
 
--- 2. AUTO SAVE LOOP
 task.spawn(function()
     while true do
         task.wait(5)
@@ -493,7 +513,6 @@ function playMacro()
                     end
                     step = step + 1
                 else
-                    -- >>> STATUS DISPLAY <<<
                     local stepName = act.Action
                     if act.UnitName then stepName = stepName .. " [" .. act.UnitName .. "]" end
                     if act.SkillName then stepName = stepName .. " [" .. act.SkillName .. "]" end
