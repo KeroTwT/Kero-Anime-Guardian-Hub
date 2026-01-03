@@ -395,8 +395,9 @@ local function SendGameWebhook(status)
 
     -- SENDING LOGIC
     local embedColor = (status == "Victory") and 65280 or 16711680
-    local headerIcon = "https://i.postimg.cc/1RYRdwrS/Bo-suu-tap.jpg"
-    local mainImage = "https://i.postimg.cc/TwNxZvmw/no-Filter.webp"
+    -- >>> ĐÃ ĐỔI CHỖ ẢNH LẠI CHO ĐÚNG <<<
+    local headerIcon = "https://i.postimg.cc/TwNxZvmw/no-Filter.webp" -- Ảnh mèo (Thumbnail nhỏ)
+    local mainImage = "https://i.postimg.cc/1RYRdwrS/Bo-suu-tap.jpg"   -- Ảnh Anime (Main Image to)
     local footerIcon = "https://i.postimg.cc/HWKcyfKJ/download-(2).jpg"
     
     local Payload = {
