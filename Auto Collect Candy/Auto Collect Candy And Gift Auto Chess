@@ -1,0 +1,48 @@
+getgenv().AutoFarm = true 
+local TargetNames = {"Candy", "Gift"}
+local PickupDelay = 1 
+
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local LocalPlayer = Players.LocalPlayer
+
+local function TeleportTo(cframe)
+    if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+        LocalPlayer.Character.HumanoidRootPart.CFrame = cframe
+    end
+end
+
+task.spawn(function()
+    while true do
+        if not getgenv().AutoFarm then break end
+        
+        pcall(function()
+            local scanFolder = Workspace
+            -- Tự động nhận diện folder spawn nếu có (dựa theo ảnh bạn gửi)
+            if Workspace:FindFirstChild("Part") and Workspace.Part:FindFirstChild("Turns") then
+                scanFolder = Workspace.Part.Turns
+            end
+
+            for _, v in pairs(scanFolder:GetChildren()) do 
+                if not getgenv().AutoFarm then break end
+                
+                if table.find(TargetNames, v.Name) then
+                    local targetCFrame = nil
+                    
+                    if v:IsA("BasePart") then 
+                        targetCFrame = v.CFrame
+                    elseif v:IsA("Model") then 
+                        targetCFrame = v:GetPivot() 
+                    end
+                    
+                    if targetCFrame then
+                        TeleportTo(targetCFrame)
+                        task.wait(PickupDelay)
+                        if v.Parent then task.wait(0.5) end
+                    end
+                end
+            end
+        end)
+        task.wait(1)
+    end
+end)
