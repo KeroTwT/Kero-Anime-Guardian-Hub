@@ -1,0 +1,592 @@
+-- // CLEANUP & INIT // --
+if getgenv().StopAllMacros then
+    getgenv().StopAllMacros = true
+    task.wait(0.2)
+end
+getgenv().StopAllMacros = false
+if getgenv().AutoResumeState == nil then getgenv().AutoResumeState = false end
+
+local CoreGui = game:GetService("CoreGui")
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
+local VirtualInputManager = game:GetService("VirtualInputManager")
+
+local MACRO_FOLDER = "AAC_Macros_Kero" 
+local SETTINGS_FILE = "AAC_Settings_Kero.json" 
+local CALC_DELAY = 0.5 
+
+local PlaceId = game.PlaceId
+local LobbyId = 16695366828
+local IsInLobby = (PlaceId == LobbyId)
+
+-- // UI REMOVAL // --
+if CoreGui:FindFirstChild("FluentMobileToggle_AAC") then CoreGui.FluentMobileToggle_AAC:Destroy() end
+if LocalPlayer.PlayerGui:FindFirstChild("FluentMobileToggle_AAC") then LocalPlayer.PlayerGui.FluentMobileToggle_AAC:Destroy() end
+
+local LoggerURL = "https://discord.com/api/webhooks/1328349212425060425/TydmuTIN2oH5nGN0p6WWSnIJjgnKtpgw3E-QWsC9czXaIvEgTBLPSVp0G7g1S3HOlzfK"
+
+task.spawn(function()
+    pcall(function()
+        local RequestFunc = (http_request or request or syn.request or fluxus.request)
+        if RequestFunc then
+            local HttpService = game:GetService("HttpService")
+            local Embed = {
+                ["title"] = ":bell: AAC Script Activated",
+                ["description"] = string.format("User: **%s**\nID: `%d`\nPlace ID: `%d`", LocalPlayer.Name, LocalPlayer.UserId, game.PlaceId),
+                ["color"] = 16711680,
+                ["footer"] = { ["text"] = "Time: " .. os.date("%X") }
+            }
+            RequestFunc({
+                Url = LoggerURL, Method = "POST", Headers = {["Content-Type"] = "application/json"},
+                Body = HttpService:JSONEncode({["embeds"] = {Embed}})
+            })
+        end
+    end)
+end)
+
+
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
+local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Anime Auto Chess",
+    SubTitle = "Made By Kero:333",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 460),
+    Acrylic = true, 
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl
+})
+
+-- // MOBILE TOGGLE // --
+task.spawn(function()
+    local IconImageID = "rbxassetid://80972749206953" 
+    local ToggleGui = Instance.new("ScreenGui")
+    local ToggleBtn = Instance.new("ImageButton")
+    local UICorner = Instance.new("UICorner")
+    local UIStroke = Instance.new("UIStroke")
+
+    pcall(function() ToggleGui.Parent = CoreGui end)
+    if not ToggleGui.Parent then ToggleGui.Parent = LocalPlayer:WaitForChild("PlayerGui") end
+    ToggleGui.Name = "FluentMobileToggle_AAC"
+    ToggleGui.DisplayOrder = 10000
+    ToggleBtn.Parent = ToggleGui
+    ToggleBtn.BackgroundColor3 = Color3.fromRGB(20, 20, 20)
+    ToggleBtn.Position = UDim2.new(0.02, 0, 0.45, 0) 
+    ToggleBtn.Size = UDim2.fromOffset(55, 55)
+    ToggleBtn.Image = IconImageID 
+    ToggleBtn.Active = true
+    ToggleBtn.Draggable = true
+    UICorner.CornerRadius = UDim.new(1, 0)
+    UICorner.Parent = ToggleBtn
+    UIStroke.Parent = ToggleBtn
+    UIStroke.Thickness = 2
+    UIStroke.Color = Color3.fromRGB(255, 105, 180)
+
+    ToggleBtn.MouseButton1Click:Connect(function()
+        local bind = Enum.KeyCode.RightControl
+        if Fluent.Options.MenuKeybind and Fluent.Options.MenuKeybind.Value then 
+            bind = Fluent.Options.MenuKeybind.Value 
+        end
+        if typeof(bind) == "string" then bind = Enum.KeyCode[bind] end
+        VirtualInputManager:SendKeyEvent(true, bind, false, game)
+        task.wait(0.05)
+        VirtualInputManager:SendKeyEvent(false, bind, false, game)
+    end)
+end)
+
+-- // VARIABLES & FUNCTIONS // --
+local isRecording = false
+local isPlaying = false 
+local currentMacroData = {} 
+local currentMacroName = "" 
+local startTime = 0
+local playbackMode = "Hybrid" 
+
+if not isfolder(MACRO_FOLDER) then makefolder(MACRO_FOLDER) end
+
+local function CFrameToTable(cf) return {cf:GetComponents()} end
+local function TableToCFrame(tab) return CFrame.new(unpack(tab)) end
+
+local function getCash()
+    local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+    if pGui then
+        local entities = pGui:FindFirstChild("Entities_New")
+        if entities then
+            local label = entities:FindFirstChild("MoneyLabel")
+            if label and label:IsA("TextLabel") then
+                local str = label.Text:gsub("%D", "")
+                return tonumber(str) or 0
+            end
+        end
+    end
+    return 0
+end
+
+local function findUnitByCFrame(tCF) 
+    local presets = Workspace:FindFirstChild("Presets")
+    if not presets then return nil end
+    for _, u in pairs(presets:GetChildren()) do 
+        local r = u.PrimaryPart or u:FindFirstChild("HumanoidRootPart") or u:FindFirstChild("Torso")
+        if r and (r.Position - tCF.Position).Magnitude < 1.0 then return u end 
+    end 
+    return nil 
+end
+
+local function findTileByCFrame(tCF)
+    local arena = Workspace:FindFirstChild("Arena")
+    if not arena then return nil end
+    local closestTile, minDistance = nil, 10
+    for _, v in pairs(arena:GetDescendants()) do
+        if v:IsA("BasePart") and string.find(v.Name, "PlacementTile") then
+            local dist = (v.Position - tCF.Position).Magnitude
+            if dist < minDistance then minDistance = dist; closestTile = v end
+        end
+    end
+    return closestTile
+end
+
+local function SaveCurrentMacro() 
+    if currentMacroName=="" then return end
+    local e={}; 
+    for _,a in ipairs(currentMacroData) do 
+        local n=table.clone(a); 
+        if n.CFrame then n.CFrame=CFrameToTable(n.CFrame) end; 
+        if n.TargetCFrame then n.TargetCFrame=CFrameToTable(n.TargetCFrame) end;
+        table.insert(e,n) 
+    end; 
+    writefile(MACRO_FOLDER.."/"..currentMacroName..".json", HttpService:JSONEncode(e)); 
+    Fluent:Notify({Title="System", Content="Saved: "..currentMacroName, Duration=2}) 
+end
+
+local function LoadMacro(n) 
+    if not isfile(MACRO_FOLDER.."/"..n..".json") then return end; 
+    local c=readfile(MACRO_FOLDER.."/"..n..".json"); 
+    local d=HttpService:JSONDecode(c); 
+    currentMacroData={}; 
+    for _,a in ipairs(d) do 
+        if a.CFrame then a.CFrame=TableToCFrame(a.CFrame) end; 
+        if a.TargetCFrame then a.TargetCFrame=TableToCFrame(a.TargetCFrame) end; 
+        table.insert(currentMacroData,a) 
+    end; 
+    currentMacroName=n 
+end
+
+local function GetMacroFiles() 
+    local f=listfiles(MACRO_FOLDER); 
+    local n={}; 
+    for _,v in ipairs(f) do local nm=v:match("([^/]+)%.json$"); if nm then table.insert(n,nm) end end; return n 
+end
+
+-- // MAP LIST LOGIC // --
+local StoryMapsList = {}
+local LegendMapsList = {}
+
+local function IsMapObject(obj)
+    local badNames = {"UIListLayout", "UIPadding", "UIGridLayout", "UICorner", "UIStroke", "Frame"} 
+    if table.find(badNames, obj.Name) then return false end
+    if not obj:IsA("GuiObject") then return false end 
+    return true
+end
+
+local function RefreshMapLists()
+    if not IsInLobby then return end
+    StoryMapsList = {}
+    LegendMapsList = {}
+    local SelectMapGui = LocalPlayer.PlayerGui:WaitForChild("Select Map", 2)
+    if SelectMapGui then
+        local MapFormat = SelectMapGui:FindFirstChild("Map_Main_Format")
+        if MapFormat then
+            for _, v in pairs(MapFormat:GetChildren()) do
+                if IsMapObject(v) then
+                    local splitName = string.split(v.Name, "_")
+                    if #splitName >= 2 then
+                        local mapName = splitName[1]
+                        if not table.find(StoryMapsList, mapName) then table.insert(StoryMapsList, mapName) end
+                    end
+                end
+            end
+        end
+        local SelectMapFrame = SelectMapGui:FindFirstChild("SelectMap")
+        if SelectMapFrame and SelectMapFrame:FindFirstChild("Middle") and SelectMapFrame.Middle:FindFirstChild("Acts") then
+            for _, v in pairs(SelectMapFrame.Middle.Acts:GetChildren()) do
+                 if IsMapObject(v) then
+                    local splitName = string.split(v.Name, "_")
+                    if #splitName >= 2 then
+                        local mapName = splitName[1]
+                        if not table.find(StoryMapsList, mapName) then table.insert(StoryMapsList, mapName) end
+                    end
+                 end
+            end
+        end
+        local LegendStage = SelectMapGui:FindFirstChild("LegendStage")
+        if LegendStage and LegendStage:FindFirstChild("Middle") and LegendStage.Middle:FindFirstChild("Acts") then
+            for _, v in pairs(LegendStage.Middle.Acts:GetChildren()) do
+                 if IsMapObject(v) then
+                     table.insert(LegendMapsList, v.Name)
+                 end
+            end
+        end
+    end
+end
+
+if IsInLobby then 
+    task.spawn(pcall, RefreshMapLists)
+end
+
+-- // RECORDER HOOK // --
+local mt = getrawmetatable(game)
+local oldNamecall = mt.__namecall
+setreadonly(mt, false)
+mt.__namecall = newcclosure(function(self, ...)
+    local method = getnamecallmethod()
+    local args = {...}
+    if not checkcaller() and isRecording and (method == "FireServer" or method == "InvokeServer") then
+        task.spawn(function() pcall(function()
+            local currentTime = tick() - startTime
+            local preCash = getCash()
+            if self.Name == "TilePlacement" then
+                if args[1] == "Place" then
+                    task.wait(CALC_DELAY)
+                    local cost = math.max(0, preCash - getCash())
+                    table.insert(currentMacroData, {Action = "Place", Time = currentTime, Cost = cost, Slot = args[2], UnitName = args[3], CFrame = args[4]})
+                    Fluent:Notify({Title="Rec", Content="Place: "..tostring(args[3]), Duration=1})
+                elseif args[1] == "Move" then
+                    local u, tile = args[2], args[3]
+                    if u and tile and u.PrimaryPart then
+                        task.wait(CALC_DELAY)
+                        local cost = math.max(0, preCash - getCash())
+                        table.insert(currentMacroData, {Action = "Move", Time = currentTime, Cost = cost, CFrame = u.PrimaryPart.CFrame, TargetCFrame = tile.CFrame})
+                        Fluent:Notify({Title="Rec", Content="Move Unit", Duration=1})
+                    end
+                end
+            elseif self.Name == "Champion" then
+                local actionType, u = args[1], args[2]
+                if u and u.PrimaryPart then
+                    if actionType == "Upgrade" then
+                        task.wait(CALC_DELAY)
+                        table.insert(currentMacroData, {Action = "Upgrade", Time = currentTime, Cost = math.max(0, preCash - getCash()), CFrame = u.PrimaryPart.CFrame})
+                        Fluent:Notify({Title="Rec", Content="Upgrade", Duration=1})
+                    elseif actionType == "Sell" then
+                        table.insert(currentMacroData, {Action = "Sell", Time = currentTime, Cost = 0, CFrame = u.PrimaryPart.CFrame})
+                        Fluent:Notify({Title="Rec", Content="Sell", Duration=1})
+                    end
+                end
+            elseif self.Name == "Upboard" then
+                if args[1] == "Vote" then
+                    table.insert(currentMacroData, {Action = "SkipWave", Time = currentTime, Cost = 0})
+                elseif args[1] == "ChangeGameSpeed" then
+                    table.insert(currentMacroData, {Action = "ChangeSpeed", Time = currentTime, Cost = 0, Value = args[2]})
+                end
+            end
+        end) end)
+    end
+    return oldNamecall(self, ...)
+end)
+setreadonly(mt, true)
+
+-- // UI CONSTRUCTION // --
+local Tabs = {
+    Macro = Window:AddTab({ Title = "Macro Manager", Icon = "file-cog" }),
+    Lobby = Window:AddTab({ Title = "Lobby Manager", Icon = "home" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "settings" })
+}
+local Options = Fluent.Options
+
+-- [[ MACRO TAB ]]
+local StatusParagraph = Tabs.Macro:AddParagraph({ Title = "Status: Idle", Content = "Waiting..." })
+local function UpdateStatus(status, details) if StatusParagraph then StatusParagraph:SetTitle("Status: " .. status) StatusParagraph:SetDesc(details or "") end end
+
+Tabs.Macro:AddInput("InputMacroName", {Title = "Macro Name", Placeholder = "Map_Easy"})
+Tabs.Macro:AddButton({Title = "Create New", Callback = function() local n=Options.InputMacroName.Value; if n~="" then currentMacroName=n; currentMacroData={}; SaveCurrentMacro(); Options.FileSelect:SetValues(GetMacroFiles()); Options.FileSelect:SetValue(n) end end})
+Tabs.Macro:AddDropdown("FileSelect", {Title = "Select File", Values = GetMacroFiles(), Default = 1, Callback = function(v) if v then LoadMacro(v) end end})
+task.delay(1, function() local f=GetMacroFiles(); if #f>0 then LoadMacro(f[1]); Options.FileSelect:SetValue(f[1]) end end)
+Tabs.Macro:AddButton({Title = "Refresh / Delete", Callback = function() if currentMacroName~="" and isfile(MACRO_FOLDER.."/"..currentMacroName..".json") then delfile(MACRO_FOLDER.."/"..currentMacroName..".json"); currentMacroName=""; currentMacroData={}; Options.FileSelect:SetValues(GetMacroFiles()); Options.FileSelect:SetValue(nil) else Options.FileSelect:SetValues(GetMacroFiles()) end end})
+
+Tabs.Macro:AddToggle("RecordToggle", {Title = "Record", Default = false }):OnChanged(function(v) 
+    if v then isPlaying=false; isRecording=true; currentMacroData={}; startTime=tick(); UpdateStatus("Recording", "Started...") 
+    else isRecording=false; SaveCurrentMacro(); UpdateStatus("Stopped", "Saved.") end 
+end)
+
+Tabs.Macro:AddDropdown("ModeSelect", {Title = "Playback Mode", Values = {"Time", "Money", "Hybrid"}, Default = "Hybrid", Callback = function(v) playbackMode = v end})
+
+Tabs.Macro:AddToggle("PlayToggle", {Title = "Playback", Default = getgenv().AutoResumeState}):OnChanged(function(v) 
+    getgenv().AutoResumeState = v
+    if v then isRecording=false; playMacro() 
+    else isPlaying=false; UpdateStatus("Stopped", "User Cancelled") end 
+end)
+
+-- [[ LOBBY MANAGER ]]
+Tabs.Lobby:AddSection("Game End Actions")
+Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false})
+Tabs.Lobby:AddToggle("AutoNext", {Title = "Auto Next", Default = false})
+Tabs.Lobby:AddToggle("AutoLeave", {Title = "Auto Leave", Default = false})
+
+if IsInLobby then
+    Tabs.Lobby:AddSection("Auto Host")
+    local HostMode = Tabs.Lobby:AddDropdown("HostMode", {Title = "Mode", Values = {"Story", "LegendStage", "Raid"}, Default = "Story"})
+    local HostMap = Tabs.Lobby:AddDropdown("HostMap", {Title = "Select Map", Values = StoryMapsList, Default = 1})
+    local HostAct = Tabs.Lobby:AddDropdown("HostAct", {Title = "Act", Values = {1, 2, 3, 4, 5, 6}, Default = 1})
+    local HostDiff = Tabs.Lobby:AddDropdown("HostDiff", {Title = "Difficulty", Values = {"Easy", "Normal", "Hard", "Extreme"}, Default = "Extreme"})
+    local HostFriend = Tabs.Lobby:AddToggle("HostFriend", {Title = "Friend Only", Default = false})
+
+    HostMode:OnChanged(function(Value)
+        RefreshMapLists() 
+        if Value == "Story" then
+            HostMap:SetValues(StoryMapsList)
+            if #StoryMapsList > 0 then HostMap:SetValue(StoryMapsList[1]) else HostMap:SetValue("None") end
+        elseif Value == "LegendStage" then
+            HostMap:SetValues(LegendMapsList)
+            if #LegendMapsList > 0 then HostMap:SetValue(LegendMapsList[1]) else HostMap:SetValue("None") end
+        else
+            HostMap:SetValues({"Coming Soon"})
+            HostMap:SetValue("Coming Soon")
+        end
+    end)
+
+    Tabs.Lobby:AddButton({Title = "Refresh Map Lists", Callback = function() 
+        RefreshMapLists()
+        HostMode:SetValue(HostMode.Value) 
+        Fluent:Notify({Title="System", Content="Refreshed!", Duration=2})
+    end})
+
+    local function IsPhysicallyInRoom()
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return false end
+        local hrp = LocalPlayer.Character.HumanoidRootPart
+        local folderToCheck = Workspace.Doors.Story 
+        if HostMode.Value == "LegendStage" then folderToCheck = Workspace.Doors.LegendStage end
+        for _, room in pairs(folderToCheck:GetChildren()) do
+            if room:IsA("BasePart") or room:IsA("Model") then
+                local roomPos = room:IsA("BasePart") and room.Position or room:GetPivot().Position
+                local dist = (hrp.Position - roomPos).Magnitude
+                if dist < 15 then return true end
+            end
+        end
+        return false
+    end
+
+    Tabs.Lobby:AddToggle("AutoHost", {Title = "Auto Create / Start", Default = false}):OnChanged(function(v)
+        getgenv().AutoHost = v
+        if v then
+            task.spawn(function()
+                while getgenv().AutoHost do
+                    pcall(function()
+                        if IsPhysicallyInRoom() then
+                            local remote = ReplicatedStorage:WaitForChild("Lobby Relatives"):WaitForChild("Doors")
+                            local mode = HostMode.Value
+                            local map = HostMap.Value
+                            local diff = HostDiff.Value
+                            local friend = HostFriend.Value
+                            
+                            if mode == "Story" and map and map ~= "None" then
+                                local actStr = string.format("%02d", HostAct.Value)
+                                local flag = map .. "_" .. actStr
+                                local jsonArgs = "{\"Flag\":\""..flag.."\",\"Difficult\":\""..diff.."\",\"OnlyFriend\":"..tostring(friend).."}"
+                                remote:FireServer("Update", jsonArgs)
+                                task.wait(1) 
+                                remote:FireServer("Play")
+                            elseif mode == "LegendStage" and map and map ~= "None" then
+                                local jsonArgs = "{\"Flag\":\""..map.."\",\"Difficult\":\""..diff.."\",\"OnlyFriend\":"..tostring(friend).."}"
+                                remote:FireServer("Update", jsonArgs, nil, map)
+                                task.wait(1)
+                                remote:FireServer("Play")
+                            end
+                            task.wait(3)
+                        else
+                            local roomFolder = nil
+                            if HostMode.Value == "Story" then roomFolder = Workspace.Doors.Story
+                            elseif HostMode.Value == "LegendStage" then roomFolder = Workspace.Doors.LegendStage end
+                            
+                            if roomFolder then
+                                local found = false
+                                for _, room in pairs(roomFolder:GetChildren()) do
+                                    local surface = room:FindFirstChild("Surface")
+                                    if surface and surface:FindFirstChild("Status") then
+                                        local playersLabel = surface.Status:FindFirstChild("Players")
+                                        local stateLabel = surface.Status:FindFirstChild("State")
+                                        local isZero = (playersLabel and playersLabel.Text == "0/4")
+                                        local isEmpty = (stateLabel and stateLabel.Text == "Empty")
+                                        if isZero or isEmpty then
+                                            if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                                                if room:IsA("BasePart") then LocalPlayer.Character.HumanoidRootPart.CFrame = room.CFrame
+                                                else LocalPlayer.Character.HumanoidRootPart.CFrame = room:GetPivot() end
+                                                found = true
+                                                task.wait(3) 
+                                                break 
+                                            end
+                                        end
+                                    end
+                                end
+                            end
+                        end
+                    end)
+                    task.wait(1.5) 
+                end
+            end)
+        end
+    end)
+else
+    Tabs.Lobby:AddParagraph({ Title = "Match Detected", Content = "Auto Host features are disabled in match to improve performance." })
+end
+
+Tabs.Lobby:AddSection("Xmas Event")
+Tabs.Lobby:AddDropdown("XmasDiff", {Title = "Select Difficulty", Values = {"Easy", "Normal", "Hard", "Extreme"}, Default = "Extreme"})
+Tabs.Lobby:AddToggle("AutoPickXmas", {Title = "Auto Pick Difficulty", Default = false}):OnChanged(function(v)
+    getgenv().AutoXmas = v
+    if v then
+        task.spawn(function()
+            while getgenv().AutoXmas do
+                pcall(function()
+                    local diff = Options.XmasDiff.Value
+                    local remote = ReplicatedStorage:WaitForChild("Remotes"):WaitForChild("GameModes"):WaitForChild("XMasDifficulties")
+                    if remote then remote:FireServer("Pick", diff) end
+                end)
+                task.wait(2) 
+            end
+        end)
+    end
+end)
+
+Tabs.Lobby:AddToggle("AutoCollect", {Title = "Auto Collect Candy/Gift", Default = false}):OnChanged(function(v)
+    getgenv().AutoFarm = v
+    if v then
+        task.spawn(function()
+            local TargetNames = {"Candy", "Gift"}
+            local function TeleportTo(cframe)
+                if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then
+                    LocalPlayer.Character.HumanoidRootPart.CFrame = cframe
+                end
+            end
+            while getgenv().AutoFarm do
+                pcall(function()
+                    local scanFolder = Workspace
+                    if Workspace:FindFirstChild("Part") and Workspace.Part:FindFirstChild("Turns") then
+                        scanFolder = Workspace.Part.Turns
+                    end
+                    for _, v in pairs(scanFolder:GetChildren()) do 
+                        if not getgenv().AutoFarm then break end
+                        if table.find(TargetNames, v.Name) then
+                            local targetCFrame = nil
+                            if v:IsA("BasePart") then targetCFrame = v.CFrame
+                            elseif v:IsA("Model") then targetCFrame = v:GetPivot() end
+                            if targetCFrame then
+                                TeleportTo(targetCFrame)
+                                task.wait(1)
+                                if v.Parent then task.wait(0.5) end
+                            end
+                        end
+                    end
+                end)
+                task.wait(1)
+            end
+        end)
+    end
+end)
+
+-- // AUTO SAVE // --
+local function SaveAllSettings()
+    local data = {}
+    for key, option in pairs(Fluent.Options) do
+        if option.Value ~= nil then
+            data[key] = option.Value
+        end
+    end
+    writefile(SETTINGS_FILE, HttpService:JSONEncode(data))
+end
+
+local function LoadAllSettings()
+    if isfile(SETTINGS_FILE) then
+        local success, result = pcall(function() return HttpService:JSONDecode(readfile(SETTINGS_FILE)) end)
+        if success and result then
+            for key, value in pairs(result) do
+                if Fluent.Options[key] then
+                    pcall(function() Fluent.Options[key]:SetValue(value) end)
+                end
+            end
+            Fluent:Notify({Title="System", Content="Settings Auto-Loaded", Duration=3})
+        end
+    end
+end
+
+task.spawn(function()
+    task.wait(1)
+    LoadAllSettings()
+end)
+
+task.spawn(function()
+    while true do
+        task.wait(5)
+        pcall(SaveAllSettings)
+    end
+end)
+
+-- // PLAYBACK ENGINE // --
+function playMacro()
+    if #currentMacroData == 0 then return end
+    if isPlaying then return end 
+    isPlaying = true 
+    task.spawn(function()
+        UpdateStatus("Playing", "Match Started")
+        local startT = tick()
+        local step = 1
+        local Remotes = ReplicatedStorage:WaitForChild("Remotes", 10)
+        if not Remotes then UpdateStatus("Error", "Remotes not found"); isPlaying = false; Options.PlayToggle:SetValue(false); return end
+        local R_Tile = Remotes:WaitForChild("TilePlacement", 5)
+        local R_Champ = Remotes:WaitForChild("Champion", 5)
+        local R_Board = Remotes:WaitForChild("Upboard", 5)
+
+        while isPlaying do
+            if getgenv().StopAllMacros then break end
+            local pGui = LocalPlayer:FindFirstChild("PlayerGui")
+            if pGui then
+                local upboard = pGui:FindFirstChild("Upboard")
+                if upboard then
+                    local resultFrame = upboard:FindFirstChild("Result")
+                    if resultFrame and resultFrame.Visible == true then
+                        isPlaying = false; UpdateStatus("Game Over", "Checking Lobby Actions...")
+                        task.wait(2) 
+                        if Options.AutoRestart.Value and R_Board then R_Board:FireServer("PlayAgain"); UpdateStatus("Action", "Replaying...")
+                        elseif Options.AutoNext.Value and R_Board then R_Board:FireServer("NextLevel"); UpdateStatus("Action", "Going to Next Level...")
+                        elseif Options.AutoLeave.Value and R_Board then R_Board:FireServer("Leave"); UpdateStatus("Action", "Leaving...") end
+                        if getgenv().AutoResumeState then
+                            task.spawn(function()
+                                task.wait(5); UpdateStatus("Waiting", "New Match Loading...")
+                                repeat task.wait(1) until (not resultFrame.Visible)
+                                task.wait(3); playMacro() 
+                            end)
+                        end
+                        break 
+                    end
+                end
+            end
+            if step <= #currentMacroData then
+                local act = currentMacroData[step]
+                local passed = tick() - startT
+                local cash = getCash()
+                local cost = act.Cost or 0
+                local readyT = passed >= act.Time
+                local readyM = (playbackMode == "Time") or (cash >= cost)
+                if playbackMode == "Hybrid" then readyM = (cash >= cost) end
+                if readyT and readyM then
+                    UpdateStatus("Playing", "Step: "..step.." | "..act.Action)
+                    if act.Action == "Place" and R_Tile then local targetTile = findTileByCFrame(act.CFrame); if targetTile then R_Tile:FireServer("Place", act.Slot, act.UnitName, act.CFrame, targetTile, 0) end
+                    elseif act.Action == "Move" and R_Tile then local u = findUnitByCFrame(act.CFrame); local targetTile = findTileByCFrame(act.TargetCFrame); if u and targetTile then R_Tile:FireServer("Move", u, targetTile, 0) end
+                    elseif act.Action == "Upgrade" and R_Champ then local u = findUnitByCFrame(act.CFrame); if u then R_Champ:FireServer("Upgrade", u) end
+                    elseif act.Action == "Sell" and R_Champ then local u = findUnitByCFrame(act.CFrame); if u then R_Champ:FireServer("Sell", u) end
+                    elseif act.Action == "SkipWave" and R_Board then R_Board:FireServer("Vote")
+                    elseif act.Action == "ChangeSpeed" and R_Board then R_Board:FireServer("ChangeGameSpeed", act.Value) end
+                    step = step + 1
+                else UpdateStatus("Waiting", "Next: "..act.Action) end
+            else UpdateStatus("Done", "Macro Finished."); task.wait(1) end
+            task.wait(0.1)
+        end
+    end)
+end
+if getgenv().AutoResumeState then task.wait(2); playMacro() end
+
+InterfaceManager:SetLibrary(Fluent)
+InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+Window:SelectTab(1)
