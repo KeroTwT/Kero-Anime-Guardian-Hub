@@ -18,7 +18,6 @@ task.spawn(function()
         
         pcall(function()
             local scanFolder = Workspace
-            -- Tự động nhận diện folder spawn nếu có (dựa theo ảnh bạn gửi)
             if Workspace:FindFirstChild("Part") and Workspace.Part:FindFirstChild("Turns") then
                 scanFolder = Workspace.Part.Turns
             end
