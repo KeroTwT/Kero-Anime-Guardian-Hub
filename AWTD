@@ -15,6 +15,7 @@ getgenv().WebhookEnabled = false
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local HttpService = game:GetService("HttpService") 
 
 -- // REMOVE OLD UI // --
 if CoreGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then CoreGui.FluentMobileToggle_Fix_Duc:Destroy() end
@@ -32,7 +33,6 @@ task.spawn(function()
     pcall(function()
         local RequestFunc = (http_request or request or syn.request or fluxus.request)
         if RequestFunc then
-            local HttpService = game:GetService("HttpService")
             local Embed = {
                 ["title"] = "🔔 AWTD Script Activated",
                 ["description"] = string.format("User: **%s**\nID: `%d`\nPlace ID: `%d`", LocalPlayer.Name, LocalPlayer.UserId, game.PlaceId),
@@ -569,9 +569,11 @@ task.spawn(function()
             if not w then 
                 w = true; isPlaying = false
                 if getgenv().WebhookEnabled then SendGameWebhook(status) end
+                
                 if Options.AutoRestart.Value then firebutton(getUiButton("Restart"))
                 elseif Options.AutoNext.Value then firebutton(getUiButton("Next"))
                 elseif Options.AutoLeave.Value then firebutton(getUiButton("Back")) end
+                
                 task.wait(1) 
             end
         elseif w then
