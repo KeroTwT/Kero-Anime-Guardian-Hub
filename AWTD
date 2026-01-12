@@ -287,7 +287,7 @@ Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false })
 Tabs.Lobby:AddToggle("AutoNext", {Title = "Auto Next", Default = false })
 Tabs.Lobby:AddToggle("AutoLeave", {Title = "Auto Leave", Default = false })
 
--- >>> NEW: EVENT SECTION <<<
+-- >>> EVENT SECTION <<<
 Tabs.Lobby:AddSection("Event")
 Tabs.Lobby:AddDropdown("EventTimeSelect", { Title = "Select Time", Values = {"Day", "Night", "Cycle"}, Default = "Cycle" })
 Tabs.Lobby:AddToggle("AutoPickTime", {Title = "Auto Pick Time", Default = false }):OnChanged(function(v)
@@ -325,17 +325,17 @@ Tabs.Lobby:AddToggle("AutoJoinAbyss", {Title = "Auto Join Abyss", Default = fals
 end)
 Tabs.Lobby:AddSection("Create/Join Room")
 local MapData = {
-    ["Event Stage"] = {"Boss Rush", "Random Unit"},
-    ["Resource Mode"] = {"Training Field", "Metal Rush", "Blue Element", "Red Element", "Green Element", "Purple Element", "Yellow Element"},
+    ["Event Stage"] = {"Boss Rush", "Random Unit", "Forbidden Graveyard", "Training Field", "Work Field"},
+    ["Resource Mode"] = {"Metal Rush", "Blue Element", "Red Element", "Green Element", "Purple Element", "Yellow Element"},
     ["Raid Mode"] = {"The Rumbling", "Esper City", "String Kingdom", "Ruin Society", "Soul Hall", "Katana Revenge", "Pillar Cave", "Spider MT.Raid", "Katamura City Raid", "Kujaku House", "Hero City Raid", "MarineFord Raid", "Idol Concert", "Evil Pink Dungeon", "Exploding Planet", "Charuto Bridge"},
     ["Legend Stages"] = {"Fairy Camelot", "Z Game", "Android Future", "Paradox Invasion", "Victory Valley", "Shinobi Battleground", "Dream Island", "Tomb of the Star", "Shadow Realm", "Chaos Return"},
     ["Quest Stages"] = {"The Eclipse"},
-    ["Special Event"] = {"Summer Island"}
+    ["Special Event"] = {"Reaper Town"}
 }
 local ModeList = {"Event Stage", "Resource Mode", "Raid Mode", "Legend Stages", "Quest Stages", "Special Event"}
 local DiffList = {"Normal", "Insane", "Nightmare", "Master", "Challenger", "Unique"}
 Tabs.Lobby:AddDropdown("RoomMode", { Title = "Select Mode", Values = ModeList, Default = "Special Event", Callback = function(Value) if Options.RoomStage then Options.RoomStage:SetValues(MapData[Value] or {}); Options.RoomStage:SetValue(MapData[Value][1]) end end })
-Tabs.Lobby:AddDropdown("RoomStage", {Title = "Select Stage", Values = MapData["Special Event"], Default = "Summer Island"})
+Tabs.Lobby:AddDropdown("RoomStage", {Title = "Select Stage", Values = MapData["Special Event"], Default = "Reaper Town"})
 Tabs.Lobby:AddDropdown("RoomDiff", {Title = "Select Difficulty", Values = DiffList, Default = "Unique"})
 Tabs.Lobby:AddToggle("RoomFriendOnly", {Title = "Friend Only", Default = false })
 Tabs.Lobby:AddToggle("AutoCreateRoom", {Title = "Auto Join/Create", Default = false }):OnChanged(function(v)
@@ -569,11 +569,9 @@ task.spawn(function()
             if not w then 
                 w = true; isPlaying = false
                 if getgenv().WebhookEnabled then SendGameWebhook(status) end
-                
                 if Options.AutoRestart.Value then firebutton(getUiButton("Restart"))
                 elseif Options.AutoNext.Value then firebutton(getUiButton("Next"))
                 elseif Options.AutoLeave.Value then firebutton(getUiButton("Back")) end
-                
                 task.wait(1) 
             end
         elseif w then
