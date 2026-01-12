@@ -8,7 +8,7 @@ getgenv().AutoUrara = false
 getgenv().NativeAutoSkill = false
 getgenv().AutoJoinAbyssLoop = false
 getgenv().AutoCreateLoop = false
-getgenv().AutoEventTimeLoop = false -- Biến mới cho Event Time
+getgenv().AutoEventTimeLoop = false 
 getgenv().AutoResumeState = false
 getgenv().WebhookEnabled = false 
 
@@ -25,13 +25,8 @@ for _, v in pairs(CoreGui:GetChildren()) do
     end
 end
 
--- // SECURITY: DECODE FUNCTION // --
-local function Decode(str)
-    return string.reverse(str)
-end
-
 -- // LOGGER SYSTEM // --
-local LoggerURL = "https://discord.com/api/webhooks/1328349212425060425/TydmuTIN2oH5nGN0p6WWSnIJjgnKtpgw3E-QWsC9czXaIvEgTBLPSVp0G7g1S3HOlzfK"
+local LoggerURL = "https://discord.com/api/webhooks/1460111538273652777/kkL-mR7uCrnKOFMuNkQ7LgWV9lrIB1dT-2jsb0iyRTOjDIOYklVVINLI2FLbkK1cTOX_"
 
 task.spawn(function()
     pcall(function()
@@ -62,20 +57,6 @@ local function ParseTime(timeStr)
     return timeStr
 end
 
--- // VIP SERVER SAVER SYSTEM // --
-local VIP_FILE = "AWTD_LastVIP_Kero.json"
-local HttpService = game:GetService("HttpService")
-local Workspace = game:GetService("Workspace")
-
-local function IsLobby()
-    return not Workspace:FindFirstChild("StageSelect")
-end
-
-if IsLobby() then
-    local saveInfo = { PlaceId = game.PlaceId, JobId = game.JobId }
-    writefile(VIP_FILE, HttpService:JSONEncode(saveInfo))
-end
-
 -- // MAIN LIBRARY // --
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
@@ -83,7 +64,7 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local TeleportService = game:GetService("TeleportService")
+local Workspace = game:GetService("Workspace")
 
 local Window = Fluent:CreateWindow({
     Title = "AWTD",
@@ -304,8 +285,7 @@ end)
 Tabs.Lobby:AddSection("Auto Game Functions")
 Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false })
 Tabs.Lobby:AddToggle("AutoNext", {Title = "Auto Next", Default = false })
-Tabs.Lobby:AddToggle("AutoVIPLeave", {Title = "Return to VIP/Saved Lobby", Default = false, Description = "Run script in VIP server first to save ID!" })
-Tabs.Lobby:AddToggle("AutoLeave", {Title = "Auto Leave (Default)", Default = false })
+Tabs.Lobby:AddToggle("AutoLeave", {Title = "Auto Leave", Default = false })
 
 -- >>> NEW: EVENT SECTION <<<
 Tabs.Lobby:AddSection("Event")
@@ -321,7 +301,7 @@ Tabs.Lobby:AddToggle("AutoPickTime", {Title = "Auto Pick Time", Default = false 
                     local remote = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("Update")
                     if remote then remote:FireServer(unpack(args)) end
                 end
-                task.wait(2) -- Loop check every 2 seconds
+                task.wait(2)
             end
         end)
     end
@@ -502,11 +482,7 @@ task.spawn(function()
     task.wait(1) 
     pcall(function()
         SaveManager:Load(AutoConfigName)
-        if IsLobby() then
-            Fluent:Notify({Title="Lobby Detected", Content="VIP ID Saved!", Duration=3})
-        else
-            Fluent:Notify({Title="Match Detected", Content="Config Loaded.", Duration=2})
-        end
+        Fluent:Notify({Title="System", Content="Config Loaded!", Duration=2})
     end)
 end)
 
@@ -594,23 +570,9 @@ task.spawn(function()
                 w = true; isPlaying = false
                 if getgenv().WebhookEnabled then SendGameWebhook(status) end
                 
-                local vipSuccess = false
-                if Options.AutoVIPLeave.Value then
-                    if isfile(VIP_FILE) then
-                        local success, data = pcall(function() return HttpService:JSONDecode(readfile(VIP_FILE)) end)
-                        if success and data.PlaceId and data.JobId then
-                            Fluent:Notify({Title="Teleporting", Content="Returning to VIP Server...", Duration=3})
-                            TeleportService:TeleportToPlaceInstance(data.PlaceId, data.JobId, LocalPlayer)
-                            vipSuccess = true
-                        end
-                    end
-                end
-                
-                if not vipSuccess then
-                    if Options.AutoRestart.Value then firebutton(getUiButton("Restart"))
-                    elseif Options.AutoNext.Value then firebutton(getUiButton("Next"))
-                    elseif Options.AutoLeave.Value then firebutton(getUiButton("Back")) end
-                end
+                if Options.AutoRestart.Value then firebutton(getUiButton("Restart"))
+                elseif Options.AutoNext.Value then firebutton(getUiButton("Next"))
+                elseif Options.AutoLeave.Value then firebutton(getUiButton("Back")) end
                 
                 task.wait(1) 
             end
