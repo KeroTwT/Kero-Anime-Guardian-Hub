@@ -15,7 +15,6 @@ getgenv().WebhookEnabled = false
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local HttpService = game:GetService("HttpService") 
 
 -- // REMOVE OLD UI // --
 if CoreGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then CoreGui.FluentMobileToggle_Fix_Duc:Destroy() end
@@ -26,12 +25,14 @@ for _, v in pairs(CoreGui:GetChildren()) do
     end
 end
 
+-- // LOGGER SYSTEM // --
 local LoggerURL = "https://discord.com/api/webhooks/1460111538273652777/kkL-mR7uCrnKOFMuNkQ7LgWV9lrIB1dT-2jsb0iyRTOjDIOYklVVINLI2FLbkK1cTOX_"
 
 task.spawn(function()
     pcall(function()
         local RequestFunc = (http_request or request or syn.request or fluxus.request)
         if RequestFunc then
+            local HttpService = game:GetService("HttpService")
             local Embed = {
                 ["title"] = "🔔 AWTD Script Activated",
                 ["description"] = string.format("User: **%s**\nID: `%d`\nPlace ID: `%d`", LocalPlayer.Name, LocalPlayer.UserId, game.PlaceId),
@@ -64,6 +65,7 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
+local HttpService = game:GetService("HttpService")
 
 local Window = Fluent:CreateWindow({
     Title = "AWTD",
@@ -145,6 +147,21 @@ local function getWave() if Workspace:FindFirstChild("Info") and Workspace.Info:
 local function SaveCurrentMacro() if currentMacroName=="" then return end; local e={}; for _,a in ipairs(currentMacroData) do local n=table.clone(a); if n.CFrame then n.CFrame=CFrameToTable(n.CFrame) end; table.insert(e,n) end; writefile(MACRO_FOLDER.."/"..currentMacroName..".json", HttpService:JSONEncode(e)); Fluent:Notify({Title="System", Content="Saved: "..currentMacroName, Duration=2}) end
 local function LoadMacro(n) if not isfile(MACRO_FOLDER.."/"..n..".json") then return end; local c=readfile(MACRO_FOLDER.."/"..n..".json"); local d=HttpService:JSONDecode(c); currentMacroData={}; for _,a in ipairs(d) do if a.CFrame then a.CFrame=TableToCFrame(a.CFrame) end; table.insert(currentMacroData,a) end; currentMacroName=n end
 local function GetMacroFiles() local f=listfiles(MACRO_FOLDER); local n={}; for _,v in ipairs(f) do local nm=v:match("([^/]+)%.json$"); if nm then table.insert(n,nm) end end; return n end
+
+-- [NEW] PRECISE UNIT CHECKERS
+local function getUnitLevel(unit)
+    if unit and unit:FindFirstChild("Info") and unit.Info:FindFirstChild("Upgrade") then
+        return unit.Info.Upgrade.Value
+    end
+    return -1
+end
+
+local function getUnitUpgradeCost(unit)
+    if unit and unit:FindFirstChild("Info") and unit.Info:FindFirstChild("UpgradeCost") then
+        return unit.Info.UpgradeCost.Value
+    end
+    return 0 -- Return 0 means Max Level or Error
+end
 
 local function MonitorUnitAutoSkill(unit)
     if not unit then return end
@@ -492,7 +509,7 @@ task.spawn(function()
     end
 end)
 
--- // MACRO PLAYER // --
+-- // MACRO PLAYER (SMART VERIFY + SKIP MAXED) // --
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
@@ -518,22 +535,89 @@ function playMacro()
                 if playbackMode ~= "Time" and cost > 0 then readyM = cash >= cost end
                 
                 if (playbackMode == "Time" and readyT) or (playbackMode == "Money" and readyM) or (readyT and readyM) then
-                    UpdateStatus("Playing", "Step: "..step.." | "..act.Action)
-                    if act.Action == "Place" and Rem.Spawn then SmartFire(Rem.Spawn, {act.UnitName, act.CFrame, act.Slot, act.Data})
-                    elseif act.Action == "Upgrade" and Rem.Upgrade then local u=findUnitByCFrame(act.CFrame); if u then SmartFire(Rem.Upgrade, {u}) end
-                    elseif act.Action == "Sell" and Rem.Sell then local u=findUnitByCFrame(act.CFrame); if u then SmartFire(Rem.Sell, {u}) end
+                    
+                    local stepDone = false
+                    UpdateStatus("Executing", "Step: "..step.." | "..act.Action)
+
+                    -- [SMART VERIFY: PLACE] Check Workspace.Units
+                    if act.Action == "Place" and Rem.Spawn then
+                        repeat
+                            if getgenv().StopAllMacros or not isPlaying then break end
+                            local u = findUnitByCFrame(act.CFrame)
+                            if u then 
+                                stepDone = true 
+                            else
+                                if getCash() >= cost then
+                                    SmartFire(Rem.Spawn, {act.UnitName, act.CFrame, act.Slot, act.Data})
+                                end
+                                task.wait(0.15) -- Fast Loop
+                            end
+                        until stepDone
+
+                    -- [SMART VERIFY: UPGRADE] Skip if Maxed (Cost=0) OR Verify Level Up
+                    elseif act.Action == "Upgrade" and Rem.Upgrade then
+                        local u = findUnitByCFrame(act.CFrame)
+                        if u then
+                            -- >>>> SMART SKIP CHECK <<<<
+                            local currentCost = getUnitUpgradeCost(u)
+                            if currentCost <= 0 then
+                                UpdateStatus("Skipping", "Unit Maxed (Cost 0)")
+                                stepDone = true -- SKIP STEP IMMEDIATELY
+                            else
+                                local startLvl = getUnitLevel(u)
+                                repeat
+                                    if getgenv().StopAllMacros or not isPlaying then break end
+                                    if not u or not u.Parent then stepDone = true; break end 
+                                    
+                                    local currentLvl = getUnitLevel(u)
+                                    if currentLvl > startLvl then
+                                        stepDone = true
+                                    else
+                                        if getCash() >= cost then
+                                            SmartFire(Rem.Upgrade, {u})
+                                        end
+                                        task.wait(0.15) -- Fast Loop
+                                    end
+                                until stepDone
+                            end
+                        else
+                            stepDone = true -- Unit lost, skip
+                        end
+
+                    -- [SMART VERIFY: SELL] Check Workspace.Units (Wait for nil)
+                    elseif act.Action == "Sell" and Rem.Sell then
+                        repeat
+                            if getgenv().StopAllMacros or not isPlaying then break end
+                            local u = findUnitByCFrame(act.CFrame)
+                            if not u then 
+                                stepDone = true
+                            else
+                                SmartFire(Rem.Sell, {u})
+                                task.wait(0.15) -- Fast Loop
+                            end
+                        until stepDone
+
+                    -- [OTHER ACTIONS]
                     elseif act.Action == "AutoSkill" then
                         local u = findUnitByCFrame(act.CFrame)
                         if u and u:FindFirstChild("Info") then local autoVal = u.Info:FindFirstChild("AutoAbility") if autoVal and autoVal:IsA("BoolValue") then autoVal.Value = act.State end end
-                    elseif act.Action == "Ability" and Rem.Ability then local u=findUnitByCFrame(act.CFrame); if u then if act.AbilityData then SmartFire(Rem.Ability, {act.SkillName, u, act.AbilityData}) else SmartFire(Rem.Ability, {act.SkillName, u}) end end 
-                    elseif act.Action == "BuyMeat" and Rem.BuyMeat then SmartFire(Rem.BuyMeat, act.Args or {}) 
-                    elseif act.Action == "FeedAll" and Rem.FeedAll then SmartFire(Rem.FeedAll, {})
-                    elseif act.Action == "SkipEvent" and Rem.Skip then SmartFire(Rem.Skip, {})
-                    elseif act.Action == "SkipWave" and Rem.Skip then SmartFire(Rem.Skip, {})
-                    elseif act.Action == "AutoSpeed" and Rem.Speed then SmartFire(Rem.Speed, {})
+                        stepDone = true
+                    elseif act.Action == "Ability" and Rem.Ability then 
+                        local u=findUnitByCFrame(act.CFrame); 
+                        if u then if act.AbilityData then SmartFire(Rem.Ability, {act.SkillName, u, act.AbilityData}) else SmartFire(Rem.Ability, {act.SkillName, u}) end end 
+                        stepDone = true
+                    elseif act.Action == "BuyMeat" and Rem.BuyMeat then SmartFire(Rem.BuyMeat, act.Args or {}); stepDone = true 
+                    elseif act.Action == "FeedAll" and Rem.FeedAll then SmartFire(Rem.FeedAll, {}); stepDone = true
+                    elseif act.Action == "SkipEvent" and Rem.Skip then SmartFire(Rem.Skip, {}); stepDone = true
+                    elseif act.Action == "SkipWave" and Rem.Skip then SmartFire(Rem.Skip, {}); stepDone = true
+                    elseif act.Action == "AutoSpeed" and Rem.Speed then SmartFire(Rem.Speed, {}); stepDone = true
+                    else
+                        stepDone = true
                     end
-                    step = step + 1
+                    
+                    if stepDone then step = step + 1 end
                 else
+                    -- STATUS DISPLAY
                     local stepName = act.Action
                     if act.UnitName then stepName = stepName .. " [" .. act.UnitName .. "]" end
                     if act.SkillName then stepName = stepName .. " [" .. act.SkillName .. "]" end
@@ -568,11 +652,9 @@ task.spawn(function()
             if not w then 
                 w = true; isPlaying = false
                 if getgenv().WebhookEnabled then SendGameWebhook(status) end
-                
                 if Options.AutoRestart.Value then firebutton(getUiButton("Restart"))
                 elseif Options.AutoNext.Value then firebutton(getUiButton("Next"))
                 elseif Options.AutoLeave.Value then firebutton(getUiButton("Back")) end
-                
                 task.wait(1) 
             end
         elseif w then
