@@ -15,7 +15,7 @@ getgenv().WebhookEnabled = false
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local HttpService = game:GetService("HttpService") 
+local HttpService = game:GetService("HttpService")
 
 -- // REMOVE OLD UI // --
 if CoreGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then CoreGui.FluentMobileToggle_Fix_Duc:Destroy() end
@@ -127,7 +127,18 @@ local currentMacroName = ""
 local startTime = 0
 local playbackMode = "Hybrid" 
 local AutoSkillConnections = {} 
-local AllowedRemotes = { ["SpawnUnit"]=true, ["SellUnit"]=true, ["UpgradeUnit"]=true, ["UnitAbility"]=true, ["BuyMeat"]=true, ["FeedAll"]=true, ["SkipEvent"]=true, ["x2Event"]=true }
+-- [UPDATED] Added ChangeUnitModeFunction to AllowedRemotes
+local AllowedRemotes = { 
+    ["SpawnUnit"]=true, 
+    ["SellUnit"]=true, 
+    ["UpgradeUnit"]=true, 
+    ["UnitAbility"]=true, 
+    ["ChangeUnitModeFunction"]=true, -- New Remote
+    ["BuyMeat"]=true, 
+    ["FeedAll"]=true, 
+    ["SkipEvent"]=true, 
+    ["x2Event"]=true 
+}
 if not isfolder(MACRO_FOLDER) then makefolder(MACRO_FOLDER) end
 
 -- // CORE LOGIC // --
@@ -147,7 +158,6 @@ local function SaveCurrentMacro() if currentMacroName=="" then return end; local
 local function LoadMacro(n) if not isfile(MACRO_FOLDER.."/"..n..".json") then return end; local c=readfile(MACRO_FOLDER.."/"..n..".json"); local d=HttpService:JSONDecode(c); currentMacroData={}; for _,a in ipairs(d) do if a.CFrame then a.CFrame=TableToCFrame(a.CFrame) end; table.insert(currentMacroData,a) end; currentMacroName=n end
 local function GetMacroFiles() local f=listfiles(MACRO_FOLDER); local n={}; for _,v in ipairs(f) do local nm=v:match("([^/]+)%.json$"); if nm then table.insert(n,nm) end end; return n end
 
--- [NEW] CHECK COST TO SKIP MAX LEVEL
 local function getUnitUpgradeCost(unit)
     if unit and unit:FindFirstChild("Info") and unit.Info:FindFirstChild("UpgradeCost") then
         return unit.Info.UpgradeCost.Value
@@ -203,6 +213,13 @@ mt.__namecall = newcclosure(function(self, ...)
             elseif rName == "UnitAbility" then 
                 local u = args[2]
                 if u and u.PrimaryPart then table.insert(currentMacroData, { Action="Ability", Time=currentTime, Wave=currentWave, Cost=0, SkillName=args[1], CFrame=u.PrimaryPart.CFrame, AbilityData=args[3] }) end
+            -- [NEW] Record Target Mode Change
+            elseif rName == "ChangeUnitModeFunction" then
+                local u = args[1]
+                if u and u.PrimaryPart then
+                    table.insert(currentMacroData, {Action="TargetMode", Time=currentTime, Wave=currentWave, Cost=0, CFrame=u.PrimaryPart.CFrame})
+                    Fluent:Notify({Title="Rec", Content="Target Mode", Duration=1})
+                end
             elseif rName == "BuyMeat" then task.wait(CALC_DELAY); table.insert(currentMacroData, {Action="BuyMeat", Time=currentTime, Wave=currentWave, Cost=math.max(0, preCash - getCash()), Args=args}); Fluent:Notify({Title="Rec", Content="Buy Meat", Duration=1})
             elseif rName == "FeedAll" then table.insert(currentMacroData, {Action="FeedAll", Time=currentTime, Wave=currentWave, Cost=0})
             elseif rName == "SkipEvent" then table.insert(currentMacroData, {Action="SkipWave", Time=currentTime, Wave=currentWave, Cost=0})
@@ -425,8 +442,8 @@ local function SendGameWebhook(status)
 
     -- SENDING LOGIC
     local embedColor = (status == "Victory") and 65280 or 16711680
-    local headerIcon = "https://i.postimg.cc/1RYRdwrS/Bo-suu-tap.jpg" -- Thumbnail
-    local mainImage = "https://i.postimg.cc/TwNxZvmw/no-Filter.webp" -- Main Image
+    local headerIcon = "https://i.postimg.cc/1RYRdwrS/Bo-suu-tap.jpg"
+    local mainImage = "https://i.postimg.cc/TwNxZvmw/no-Filter.webp"
     local footerIcon = "https://i.postimg.cc/HWKcyfKJ/download-(2).jpg"
     
     local Payload = {
@@ -501,7 +518,7 @@ task.spawn(function()
     end
 end)
 
--- // MACRO PLAYER (FAST & LOOSE MODE) // --
+-- // MACRO PLAYER (FAST MODE + SMART UPGRADE) // --
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
@@ -510,7 +527,17 @@ function playMacro()
         local startT = tick()
         local step = 1
         local R = ReplicatedStorage:WaitForChild("Remote")
-        local Rem = { Spawn=R:FindFirstChild("SpawnUnit"), Sell=R:FindFirstChild("SellUnit"), Upgrade=R:FindFirstChild("UpgradeUnit"), Ability=R:FindFirstChild("UnitAbility"), BuyMeat=R:FindFirstChild("BuyMeat"), FeedAll=R:FindFirstChild("FeedAll"), Skip=R:FindFirstChild("SkipEvent"), Speed=R:FindFirstChild("x2Event") }
+        local Rem = { 
+            Spawn=R:FindFirstChild("SpawnUnit"), 
+            Sell=R:FindFirstChild("SellUnit"), 
+            Upgrade=R:FindFirstChild("UpgradeUnit"), 
+            Ability=R:FindFirstChild("UnitAbility"), 
+            TargetMode=R:FindFirstChild("ChangeUnitModeFunction"), -- New Remote
+            BuyMeat=R:FindFirstChild("BuyMeat"), 
+            FeedAll=R:FindFirstChild("FeedAll"), 
+            Skip=R:FindFirstChild("SkipEvent"), 
+            Speed=R:FindFirstChild("x2Event") 
+        }
 
         while isPlaying do
             if getgenv().StopAllMacros then break end
@@ -551,7 +578,7 @@ function playMacro()
                             else
                                 if getCash() >= cost then
                                     SmartFire(Rem.Upgrade, {u})
-                                    task.wait(0.3) -- Small delay between upgrades
+                                    task.wait(0.3) 
                                     stepDone = true
                                 else
                                     UpdateStatus("Waiting Cash", "Needed: "..cost)
@@ -566,6 +593,13 @@ function playMacro()
                         local u = findUnitByCFrame(act.CFrame)
                         if u then SmartFire(Rem.Sell, {u}) end
                         task.wait(0.5)
+                        stepDone = true
+
+                    -- [NEW] Target Mode
+                    elseif act.Action == "TargetMode" and Rem.TargetMode then
+                        local u = findUnitByCFrame(act.CFrame)
+                        if u then SmartFire(Rem.TargetMode, {u}) end
+                        task.wait(0.2)
                         stepDone = true
 
                     -- [OTHER ACTIONS] Fire -> Next
