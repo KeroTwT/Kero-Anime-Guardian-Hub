@@ -15,7 +15,7 @@ getgenv().WebhookEnabled = false
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
-local HttpService = game:GetService("HttpService") -- [FIXED] Thêm dòng này để sửa lỗi JSONEncode
+local HttpService = game:GetService("HttpService") 
 
 -- // REMOVE OLD UI // --
 if CoreGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then CoreGui.FluentMobileToggle_Fix_Duc:Destroy() end
