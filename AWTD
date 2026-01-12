@@ -15,6 +15,7 @@ getgenv().WebhookEnabled = false
 local CoreGui = game:GetService("CoreGui")
 local Players = game:GetService("Players")
 local LocalPlayer = Players.LocalPlayer
+local HttpService = game:GetService("HttpService") -- [FIXED] Thêm dòng này để sửa lỗi JSONEncode
 
 -- // REMOVE OLD UI // --
 if CoreGui:FindFirstChild("FluentMobileToggle_Fix_Duc") then CoreGui.FluentMobileToggle_Fix_Duc:Destroy() end
@@ -32,7 +33,6 @@ task.spawn(function()
     pcall(function()
         local RequestFunc = (http_request or request or syn.request or fluxus.request)
         if RequestFunc then
-            local HttpService = game:GetService("HttpService")
             local Embed = {
                 ["title"] = "🔔 AWTD Script Activated",
                 ["description"] = string.format("User: **%s**\nID: `%d`\nPlace ID: `%d`", LocalPlayer.Name, LocalPlayer.UserId, game.PlaceId),
@@ -65,7 +65,6 @@ local VirtualInputManager = game:GetService("VirtualInputManager")
 local GuiService = game:GetService("GuiService")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
-local HttpService = game:GetService("HttpService")
 
 local Window = Fluent:CreateWindow({
     Title = "AWTD",
@@ -148,19 +147,12 @@ local function SaveCurrentMacro() if currentMacroName=="" then return end; local
 local function LoadMacro(n) if not isfile(MACRO_FOLDER.."/"..n..".json") then return end; local c=readfile(MACRO_FOLDER.."/"..n..".json"); local d=HttpService:JSONDecode(c); currentMacroData={}; for _,a in ipairs(d) do if a.CFrame then a.CFrame=TableToCFrame(a.CFrame) end; table.insert(currentMacroData,a) end; currentMacroName=n end
 local function GetMacroFiles() local f=listfiles(MACRO_FOLDER); local n={}; for _,v in ipairs(f) do local nm=v:match("([^/]+)%.json$"); if nm then table.insert(n,nm) end end; return n end
 
--- [NEW] PRECISE UNIT CHECKERS
-local function getUnitLevel(unit)
-    if unit and unit:FindFirstChild("Info") and unit.Info:FindFirstChild("Upgrade") then
-        return unit.Info.Upgrade.Value
-    end
-    return -1
-end
-
+-- [NEW] CHECK COST TO SKIP MAX LEVEL
 local function getUnitUpgradeCost(unit)
     if unit and unit:FindFirstChild("Info") and unit.Info:FindFirstChild("UpgradeCost") then
         return unit.Info.UpgradeCost.Value
     end
-    return 0 -- Return 0 means Max Level or Error
+    return 0 
 end
 
 local function MonitorUnitAutoSkill(unit)
@@ -509,7 +501,7 @@ task.spawn(function()
     end
 end)
 
--- // MACRO PLAYER (SMART VERIFY + SKIP MAXED) // --
+-- // MACRO PLAYER (FAST & LOOSE MODE) // --
 function playMacro()
     if #currentMacroData == 0 then return end
     isPlaying = true
@@ -539,65 +531,44 @@ function playMacro()
                     local stepDone = false
                     UpdateStatus("Executing", "Step: "..step.." | "..act.Action)
 
-                    -- [SMART VERIFY: PLACE] Check Workspace.Units
+                    -- [SIMPLE PLACE] Check Cash -> Fire -> Wait 0.5s -> Next
                     if act.Action == "Place" and Rem.Spawn then
-                        repeat
-                            if getgenv().StopAllMacros or not isPlaying then break end
-                            local u = findUnitByCFrame(act.CFrame)
-                            if u then 
-                                stepDone = true 
-                            else
-                                if getCash() >= cost then
-                                    SmartFire(Rem.Spawn, {act.UnitName, act.CFrame, act.Slot, act.Data})
-                                end
-                                task.wait(0.15) -- Fast Loop
-                            end
-                        until stepDone
+                        if getCash() >= cost then
+                            SmartFire(Rem.Spawn, {act.UnitName, act.CFrame, act.Slot, act.Data})
+                            task.wait(0.5) 
+                            stepDone = true
+                        else
+                            UpdateStatus("Waiting Cash", "Needed: "..cost)
+                        end
 
-                    -- [SMART VERIFY: UPGRADE] Skip if Maxed (Cost=0) OR Verify Level Up
+                    -- [SMART UPGRADE] Check Max Level (Skip) -> Else Fire if Cash OK
                     elseif act.Action == "Upgrade" and Rem.Upgrade then
                         local u = findUnitByCFrame(act.CFrame)
                         if u then
-                            -- >>>> SMART SKIP CHECK <<<<
                             local currentCost = getUnitUpgradeCost(u)
                             if currentCost <= 0 then
-                                UpdateStatus("Skipping", "Unit Maxed (Cost 0)")
-                                stepDone = true -- SKIP STEP IMMEDIATELY
+                                stepDone = true -- Skip if Maxed
                             else
-                                local startLvl = getUnitLevel(u)
-                                repeat
-                                    if getgenv().StopAllMacros or not isPlaying then break end
-                                    if not u or not u.Parent then stepDone = true; break end 
-                                    
-                                    local currentLvl = getUnitLevel(u)
-                                    if currentLvl > startLvl then
-                                        stepDone = true
-                                    else
-                                        if getCash() >= cost then
-                                            SmartFire(Rem.Upgrade, {u})
-                                        end
-                                        task.wait(0.15) -- Fast Loop
-                                    end
-                                until stepDone
+                                if getCash() >= cost then
+                                    SmartFire(Rem.Upgrade, {u})
+                                    task.wait(0.3) -- Small delay between upgrades
+                                    stepDone = true
+                                else
+                                    UpdateStatus("Waiting Cash", "Needed: "..cost)
+                                end
                             end
                         else
-                            stepDone = true -- Unit lost, skip
+                            stepDone = true -- Unit lost/sold, skip
                         end
 
-                    -- [SMART VERIFY: SELL] Check Workspace.Units (Wait for nil)
+                    -- [SIMPLE SELL] Fire -> Wait 0.5s -> Next
                     elseif act.Action == "Sell" and Rem.Sell then
-                        repeat
-                            if getgenv().StopAllMacros or not isPlaying then break end
-                            local u = findUnitByCFrame(act.CFrame)
-                            if not u then 
-                                stepDone = true
-                            else
-                                SmartFire(Rem.Sell, {u})
-                                task.wait(0.15) -- Fast Loop
-                            end
-                        until stepDone
+                        local u = findUnitByCFrame(act.CFrame)
+                        if u then SmartFire(Rem.Sell, {u}) end
+                        task.wait(0.5)
+                        stepDone = true
 
-                    -- [OTHER ACTIONS]
+                    -- [OTHER ACTIONS] Fire -> Next
                     elseif act.Action == "AutoSkill" then
                         local u = findUnitByCFrame(act.CFrame)
                         if u and u:FindFirstChild("Info") then local autoVal = u.Info:FindFirstChild("AutoAbility") if autoVal and autoVal:IsA("BoolValue") then autoVal.Value = act.State end end
