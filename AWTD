@@ -1,3 +1,6 @@
+-- AWTD Improved Script
+
+
 if getgenv().StopAllMacros then
     getgenv().StopAllMacros = true
     task.wait(0.2)
@@ -9,6 +12,16 @@ getgenv().NativeAutoSkill    = false
 getgenv().AutoJoinAbyssLoop  = false
 getgenv().AutoCreateLoop     = false
 getgenv().AutoEventTimeLoop  = false
+
+-- Flags for Auto Play Manager features
+getgenv().AutoPlayGraveLoop      = false
+getgenv().AutoUpgradeLoop        = false
+getgenv().AutoRevealGraveLoop    = false
+-- Internal flag to prevent starting multiple loops
+getgenv().AutoPlayGraveLoopRunning = false
+
+-- Forward declare auto play manager functions so they are in scope for UI callbacks
+local StartAutoPlayGrave, StopAutoPlayGrave, StartAutoUpgrade, StartAutoRevealGrave
 
 if getgenv().AutoResumeState == nil then
     getgenv().AutoResumeState = false
@@ -490,8 +503,20 @@ Tabs.Macro:AddButton({ Title = "Create New File", Callback = function()
 end })
 Tabs.Macro:AddDropdown("FileSelect", { Title = "Select File", Values = GetMacroFiles(), Default = 1, Callback = function(v)
     if v then
+        -- Stop any currently playing macro and auto play loops when switching files
+        isPlaying = false
+        getgenv().StopAllMacros = true
+        task.delay(0.1, function()
+            getgenv().StopAllMacros = false
+        end)
         LoadMacro(v)
         UpdateStatus("Loaded", v)
+        -- Reset Play toggle to off to avoid auto-playing the new macro
+        pcall(function()
+            if Options.PlayToggle and Options.PlayToggle.SetValue then
+                Options.PlayToggle:SetValue(false)
+            end
+        end)
     end
 end })
 task.delay(1, function()
@@ -758,6 +783,41 @@ Tabs.Webhook:AddButton({ Title = "Test Send Webhook", Description = "Send a test
     SendGameWebhook("Test Victory")
 end })
 
+-- Auto Play Manager tab and toggles
+Tabs.AutoPlay = Window:AddTab({ Title = "Auto Play Manager (WIP)", Icon = "gamepad" })
+-- Rename the tab to indicate work-in-progress status
+-- Auto play toggle: graveyard automation
+Tabs.AutoPlay:AddToggle("AutoPlayToggle", { Title = "Auto Play (Special For Graveyard Only)", Default = false }):OnChanged(function(v)
+    getgenv().AutoPlayGraveLoop = v
+    if v then
+        if getgenv().StartAutoPlayGrave then
+            getgenv().StartAutoPlayGrave()
+        end
+    else
+        if getgenv().StopAutoPlayGrave then
+            getgenv().StopAutoPlayGrave()
+        end
+    end
+end)
+-- Auto upgrade toggle: upgrade units when possible
+Tabs.AutoPlay:AddToggle("AutoUpgradeToggle", { Title = "Auto Upgrade", Default = false }):OnChanged(function(v)
+    getgenv().AutoUpgradeLoop = v
+    if v then
+        if getgenv().StartAutoUpgrade then
+            getgenv().StartAutoUpgrade()
+        end
+    end
+end)
+-- Auto reveal toggle: highlight unopened graves
+Tabs.AutoPlay:AddToggle("AutoRevealToggle", { Title = "Auto Reveal Grave", Default = false }):OnChanged(function(v)
+    getgenv().AutoRevealGraveLoop = v
+    if v then
+        if getgenv().StartAutoRevealGrave then
+            getgenv().StartAutoRevealGrave()
+        end
+    end
+end)
+
 
 SaveManager:SetLibrary(Fluent)
 SaveManager:IgnoreThemeSettings()
@@ -932,6 +992,233 @@ function playMacro()
         end
     end)
 end
+
+-- Auto Reveal Grave: highlight unopened graves based on decal color
+local AutoGraveHighlights = {}
+function StartAutoRevealGrave()
+    task.spawn(function()
+        local revealStart = tick()
+        while getgenv().AutoRevealGraveLoop do
+            local map = Workspace:FindFirstChild("Map")
+            local gravesFolder = map and map:FindFirstChild("Graves")
+            if gravesFolder then
+                for _, grave in pairs(gravesFolder:GetChildren()) do
+                    local part = grave:FindFirstChild("Part")
+                    local decal = part and part:FindFirstChild("Decal")
+                    if part and decal then
+                        local color = decal.Color3
+                        local r, g, b = color.R * 255, color.G * 255, color.B * 255
+                        -- Determine categories by RGB thresholds
+                        local isBlack = (r < 10 and g < 10 and b < 10)
+                        local isRed   = (r > 200 and g < 50 and b < 50)
+                        -- skip opened graves (black)
+                        local hl = AutoGraveHighlights[grave]
+                        if not isBlack then
+                            -- skip red graves until 10 seconds have passed since reveal started
+                            if isRed and (tick() - revealStart < 10) then
+                                -- remove highlight if accidentally exists
+                                if hl then
+                                    hl:Destroy()
+                                    AutoGraveHighlights[grave] = nil
+                                end
+                            else
+                                -- highlight yellow/white graves immediately and red after delay
+                                if not hl then
+                                    hl = Instance.new("Highlight")
+                                    hl.Name = "AutoGraveHighlight"
+                                    hl.FillColor = color
+                                    hl.FillTransparency = 0.5
+                                    hl.OutlineColor = color
+                                    hl.OutlineTransparency = 0
+                                    hl.Adornee = part
+                                    hl.Parent = part
+                                    AutoGraveHighlights[grave] = hl
+                                else
+                                    hl.FillColor = color
+                                    hl.OutlineColor = color
+                                    hl.Adornee = part
+                                end
+                            end
+                        else
+                            if hl then
+                                hl:Destroy()
+                                AutoGraveHighlights[grave] = nil
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(1)
+        end
+        -- cleanup all highlights
+        for g, hl in pairs(AutoGraveHighlights) do
+            if hl then
+                hl:Destroy()
+            end
+        end
+        AutoGraveHighlights = {}
+    end)
+end
+
+-- Auto Upgrade units: upgrade owned units when enough cash
+function StartAutoUpgrade()
+    task.spawn(function()
+        while getgenv().AutoUpgradeLoop do
+            if getgenv().StopAllMacros then break end
+            local unitsFolder = Workspace:FindFirstChild("Units")
+            local cash = getCash()
+            if unitsFolder and cash > 0 then
+                for _, unit in pairs(unitsFolder:GetChildren()) do
+                    local ownerTag = unit:FindFirstChild("Owner") or (unit:FindFirstChild("Info") and unit.Info:FindFirstChild("Owner"))
+                    local isMine = false
+                    if ownerTag then
+                        if ownerTag.Value == LocalPlayer or tostring(ownerTag.Value) == LocalPlayer.Name or tonumber(ownerTag.Value) == LocalPlayer.UserId then
+                            isMine = true
+                        end
+                    end
+                    if isMine then
+                        local cost = getUnitUpgradeCost(unit)
+                        if cost > 0 and getCash() >= cost then
+                            local remote = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("UpgradeUnit")
+                            if remote then
+                                SmartFire(remote, {unit}, 3)
+                                -- wait a bit to allow upgrade to register
+                                task.wait(0.3)
+                                break
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(0.5)
+        end
+    end)
+end
+
+-- Determine a CFrame near WayPoint 3 for unit placement
+local function GetAutoPlaceCFrame()
+    local map = Workspace:FindFirstChild("Map")
+    local waypointFolder = map and map:FindFirstChild("WayPoint")
+    local wp = waypointFolder and waypointFolder:FindFirstChild("3")
+    if wp and wp:IsA("BasePart") then
+        local cf = wp.CFrame
+        -- Offset slightly to the right and forward relative to the path
+        local pos = cf.Position + cf.RightVector * 4 + cf.LookVector * 2
+        return CFrame.new(pos)
+    end
+    return CFrame.new()
+end
+
+-- Auto place: spawn random units obtained from graves near WayPoint 3
+local AutoPlaceConnection
+local function StopAutoPlace()
+    if AutoPlaceConnection then
+        AutoPlaceConnection:Disconnect()
+        AutoPlaceConnection = nil
+    end
+end
+local function StartAutoPlace()
+    StopAutoPlace()
+    task.spawn(function()
+        -- Wait for GraveEventUI world model
+        local gui
+        local startTime = tick()
+        repeat
+            if getgenv().StopAllMacros or not getgenv().AutoPlayGraveLoop then return end
+            gui = LocalPlayer.PlayerGui:FindFirstChild("GraveEventUI")
+            task.wait(0.5)
+        until gui or (tick() - startTime > 10)
+        if not gui then return end
+        local worldModel
+        -- Search descendants for WorldModel
+        for _, desc in pairs(gui:GetDescendants()) do
+            if desc:IsA("WorldModel") then
+                worldModel = desc
+                break
+            end
+        end
+        if worldModel then
+            AutoPlaceConnection = worldModel.ChildAdded:Connect(function(child)
+                -- only handle when auto play still enabled
+                if not getgenv().AutoPlayGraveLoop or getgenv().StopAllMacros then return end
+                -- spawn the unit after short delay to ensure remote ready
+                local unitName = child.Name
+                local spawnRemote = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("SpawnUnit")
+                if spawnRemote then
+                    -- compute CFrame for placement
+                    local cf = GetAutoPlaceCFrame()
+                    -- Try calling SpawnUnit with full argument list (unitName, CFrame, slot, data)
+                    local ok = pcall(function()
+                        spawnRemote:FireServer(unitName, cf, 1, {})
+                    end)
+                    -- Fallback: attempt simplified call if the above fails
+                    if not ok then
+                        pcall(function()
+                            spawnRemote:FireServer(unitName, cf)
+                        end)
+                    end
+                end
+            end)
+        end
+    end)
+end
+
+-- Auto Play graves: open graves and place units
+function StartAutoPlayGrave()
+    -- prevent overlapping loops
+    if getgenv().AutoPlayGraveLoopRunning then return end
+    getgenv().AutoPlayGraveLoopRunning = true
+    -- Start auto place when auto play begins
+    StartAutoPlace()
+    task.spawn(function()
+        while getgenv().AutoPlayGraveLoop do
+            if getgenv().StopAllMacros then break end
+            local map = Workspace:FindFirstChild("Map")
+            local gravesFolder = map and map:FindFirstChild("Graves")
+            if gravesFolder then
+                for _, grave in pairs(gravesFolder:GetChildren()) do
+                    if not getgenv().AutoPlayGraveLoop or getgenv().StopAllMacros then break end
+                    local part = grave:FindFirstChild("Part")
+                    local graveEvent = part and part:FindFirstChild("GraveEvent")
+                    local decal = part and part:FindFirstChild("Decal")
+                    if graveEvent and decal then
+                        local color = decal.Color3
+                        local isBlack = (color.R + color.G + color.B) < 0.1
+                        if not isBlack then
+                            local remote = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("GraveEvent")
+                            if remote then
+                                SmartFire(remote, {graveEvent}, 3)
+                            end
+                            -- Red graves spawn boss; wait longer
+                            local isRed = (color.R > 0.6 and color.G < 0.4 and color.B < 0.4)
+                            if isRed then
+                                task.wait(15)
+                                task.wait(10)
+                            else
+                                task.wait(1)
+                            end
+                        end
+                    end
+                end
+            end
+            task.wait(1)
+        end
+        -- cleanup on stop
+        StopAutoPlace()
+        getgenv().AutoPlayGraveLoopRunning = false
+    end)
+end
+
+function StopAutoPlayGrave()
+    getgenv().AutoPlayGraveLoop = false
+    StopAutoPlace()
+end
+
+-- Expose auto play manager functions to the global environment so UI callbacks can access them
+getgenv().StartAutoPlayGrave    = StartAutoPlayGrave
+getgenv().StopAutoPlayGrave     = StopAutoPlayGrave
+getgenv().StartAutoUpgrade      = StartAutoUpgrade
+getgenv().StartAutoRevealGrave  = StartAutoRevealGrave
 
 if getgenv().AutoResumeState then
     task.delay(2, function()
