@@ -376,7 +376,7 @@ Tabs.Lobby:AddToggle("AutoGrave", {Title = "Auto Reveal Graves", Default = false
                         end
                     end
                 end)
-                task.wait(2)
+                task.wait(0.5)
             end
         end)
     end
