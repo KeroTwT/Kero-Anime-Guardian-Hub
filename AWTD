@@ -29,6 +29,15 @@ for _, v in pairs(CoreGui:GetChildren()) do
     end
 end
 
+-- Anti AFK
+task.spawn(function()
+    local VirtualUser = game:GetService("VirtualUser")
+    LocalPlayer.Idled:Connect(function()
+        VirtualUser:CaptureController()
+        VirtualUser:ClickButton2(Vector2.new())
+    end)
+end)
+
 local LoggerURL = "https://discord.com/api/webhooks/1460111538273652777/kkL-mR7uCrnKOFMuNkQ7LgWV9lrIB1dT-2jsb0iyRTOjDIOYklVVINLI2FLbkK1cTOX_"
 task.spawn(function()
     pcall(function()
