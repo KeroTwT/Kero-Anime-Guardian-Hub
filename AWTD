@@ -344,6 +344,8 @@ Tabs.Lobby:AddSection("Auto Game Functions")
 Tabs.Lobby:AddToggle("AutoRestart", {Title = "Auto Restart", Default = false })
 Tabs.Lobby:AddToggle("AutoNext", {Title = "Auto Next", Default = false })
 Tabs.Lobby:AddToggle("AutoLeave", {Title = "Auto Leave", Default = false })
+Tabs.Lobby:AddToggle("AutoLeaveCount", {Title = "Auto Leave Per Match", Default = false })
+Tabs.Lobby:AddInput("LeaveCountNum", {Title = "Match Count Limit", Default = "5", Numeric = true, Finished = true })
 
 Tabs.Lobby:AddSection("Event")
 Tabs.Lobby:AddDropdown("EventTimeSelect", { Title = "Select Time", Values = {"Day", "Night", "Cycle"}, Default = "Cycle" })
@@ -703,6 +705,7 @@ end
 
 task.spawn(function()
     local wasEnded = false
+    local matchesPlayed = 0
     while task.wait(0.5) do
         if getgenv().StopAllMacros then break end
         local eff = Workspace:FindFirstChild("Effect")
@@ -711,15 +714,26 @@ task.spawn(function()
             if not wasEnded then 
                 wasEnded = true
                 isPlaying = false
+                matchesPlayed = matchesPlayed + 1
                 task.wait(2) 
                 if getgenv().WebhookEnabled then SendGameWebhook(status) end
-                if Options.AutoRestart.Value then 
+
+                local forceLeave = false
+                if Options.AutoLeaveCount.Value then
+                     local limit = tonumber(Options.LeaveCountNum.Value) or 5
+                     if matchesPlayed >= limit then
+                         forceLeave = true
+                         matchesPlayed = 0
+                     end
+                end
+
+                if not forceLeave and Options.AutoRestart.Value then 
                     local btn = getUiButton("Restart")
                     if btn and btn.Visible then firebutton(btn) end
-                elseif Options.AutoNext.Value then 
+                elseif not forceLeave and Options.AutoNext.Value then 
                     local btn = getUiButton("Next")
                     if btn and btn.Visible then firebutton(btn) end
-                elseif Options.AutoLeave.Value then 
+                elseif forceLeave or Options.AutoLeave.Value then 
                     local btn = getUiButton("Back")
                     if btn and btn.Visible then firebutton(btn) end
                 end
