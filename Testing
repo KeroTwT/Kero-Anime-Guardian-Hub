@@ -398,16 +398,56 @@ local function findUnitByCFrame(tCF, ignorePlaced)
     return closestUnit 
 end
 
+local function findChildPath(root, names)
+    local node = root
+    for _, n in ipairs(names) do
+        if not node then return nil end
+        node = node:FindFirstChild(n)
+    end
+    return node
+end
+
 local function getUiButton(name) 
     local pg = LocalPlayer:FindFirstChild("PlayerGui")
     if not pg then return nil end
-    local path = pg:FindFirstChild("EndUI")
-    if path then path = path:FindFirstChild("UI") end
-    if path then path = path:FindFirstChild("Stage_Grid") end
-    if path then path = path:FindFirstChild("Frame") end
-    if path then path = path:FindFirstChild(name) end
-    if path then return path:FindFirstChild("Button") end
-    return nil 
+    local endUi = pg:FindFirstChild("EndUI")
+    if not endUi then return nil end
+    local uiRoot = endUi:FindFirstChild("UI")
+    if not uiRoot then return nil end
+
+    local paths = {
+        {"Stage_Grid", "Frame", name, "Button"},
+        {"Main_Frame", "Stage_Grid", "Frame", name, "Button"}
+    }
+
+    for _, p in ipairs(paths) do
+        local btn = findChildPath(uiRoot, p)
+        if btn then return btn end
+    end
+
+    for _, p in ipairs({{"Stage_Grid", "Frame", name}, {"Main_Frame", "Stage_Grid", "Frame", name}}) do
+        local node = findChildPath(uiRoot, p)
+        if node and node:IsA("GuiButton") then
+            return node
+        elseif node and node:FindFirstChild("Button") and node.Button:IsA("GuiButton") then
+            return node.Button
+        end
+    end
+
+    for _, node in ipairs(uiRoot:GetDescendants()) do
+        if node.Name == name then
+            if node:IsA("GuiButton") then
+                return node
+            end
+            local childBtn = node:FindFirstChild("Button")
+            if childBtn and childBtn:IsA("GuiButton") then
+                return childBtn
+            end
+        elseif node.Name == "Button" and node.Parent and node.Parent.Name == name and node:IsA("GuiButton") then
+            return node
+        end
+    end
+    return nil
 end
 
 local function isEndUIVisible()
@@ -424,6 +464,29 @@ end
 
 local function firebutton(btn) 
     if not btn then return end
+    if btn:IsA("GuiButton") then
+        pcall(function() btn.Active = true end)
+        pcall(function() btn.Selectable = true end)
+        pcall(function()
+            if firesignal and btn.MouseButton1Click then
+                firesignal(btn.MouseButton1Click)
+                return
+            end
+        end)
+        pcall(function() btn:Activate() end)
+    end
+
+    local ok = pcall(function()
+        local pos = btn.AbsolutePosition
+        local size = btn.AbsoluteSize
+        local clickPos = Vector2.new(pos.X + size.X * 0.5, pos.Y + size.Y * 0.5)
+        VirtualInputManager:SendMouseButtonEvent(clickPos.X, clickPos.Y, 0, true, game, 1)
+        task.wait(0.05)
+        VirtualInputManager:SendMouseButtonEvent(clickPos.X, clickPos.Y, 0, false, game, 1)
+    end)
+
+    if ok then return end
+
     local oldNav = GuiService.GuiNavigationEnabled
     local oldSel = GuiService.SelectedObject
     GuiService.GuiNavigationEnabled = true
@@ -1007,42 +1070,63 @@ end
 task.spawn(function()
     local wasEnded = false
     local matchesPlayed = 0
+    local endActionRunning = false
     while task.wait(0.5) do
         if getgenv().StopAllMacros then break end
         local eff = Workspace:FindFirstChild("Effect")
         local endedByEffect = eff and (eff:FindFirstChild("Gameover") or eff:FindFirstChild("Victory"))
-        local endedByUI = isEndUIVisible()
-        if endedByEffect or endedByUI then
-            local status = (endedByEffect and eff and eff:FindFirstChild("Victory")) and "Victory" or "Lose"
+        if endedByEffect then
+            local status = (eff and eff:FindFirstChild("Victory")) and "Victory" or "Lose"
             if not wasEnded then 
                 wasEnded = true
                 isPlaying = false
                 matchesPlayed = matchesPlayed + 1
-                task.wait(2) 
+                task.wait(2)
                 if getgenv().WebhookEnabled then SendGameWebhook(status) end
+            end
 
-                local forceLeave = false
-                if Options.AutoLeaveCount.Value then
-                     local limit = tonumber(Options.LeaveCountNum.Value) or 5
-                     if matchesPlayed >= limit then
-                         forceLeave = true
-                         matchesPlayed = 0
-                     end
-                end
+            if not endActionRunning then
+                endActionRunning = true
+                task.spawn(function()
+                    while true do
+                        if getgenv().StopAllMacros then break end
+                        local effNow = Workspace:FindFirstChild("Effect")
+                        local stillEnded = effNow and (effNow:FindFirstChild("Gameover") or effNow:FindFirstChild("Victory"))
+                        if not stillEnded then break end
 
-                if not forceLeave and Options.AutoRestart.Value then 
-                    local btn = getUiButton("Restart")
-                    if btn and btn.Visible then firebutton(btn) end
-                elseif not forceLeave and Options.AutoNext.Value then 
-                    local btn = getUiButton("Next")
-                    if btn and btn.Visible then firebutton(btn) end
-                elseif forceLeave or Options.AutoLeave.Value then 
-                    local btn = getUiButton("Back")
-                    if btn and btn.Visible then firebutton(btn) end
-                end
+                        local forceLeave = false
+                        if Options.AutoLeaveCount.Value then
+                            local limit = tonumber(Options.LeaveCountNum.Value) or 5
+                            if matchesPlayed >= limit then
+                                forceLeave = true
+                                matchesPlayed = 0
+                            end
+                        end
+
+                        local targetName
+                        if forceLeave or Options.AutoLeave.Value then
+                            targetName = "Back"
+                        elseif Options.AutoRestart.Value then
+                            targetName = "Restart"
+                        elseif Options.AutoNext.Value then
+                            targetName = "Next"
+                        end
+
+                        if targetName then
+                            local btn = getUiButton(targetName)
+                            if btn then
+                                firebutton(btn)
+                            end
+                        end
+
+                        task.wait(0.25)
+                    end
+                    endActionRunning = false
+                end)
             end
         elseif wasEnded then
             wasEnded = false
+            endActionRunning = false
             if Options.PlayToggle.Value then playMacro() end
         end
     end
