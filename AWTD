@@ -280,7 +280,6 @@ function Fluent:CreateWindow(settings)
                     dropdown:UpdateSelection(value)
                 end
                 
-                -- Also try Set method if UpdateSelection doesn't exist
                 if not dropdown.UpdateSelection and dropdown.Set then
                      dropdown:Set(value)
                 end
@@ -1046,27 +1045,36 @@ function SendGameWebhook(status)
 		return
 	end
 	task.spawn(function()
-		local Data = LocalPlayer:WaitForChild("Data")
-		local gold = Data:WaitForChild("Gold").Value
-		local level = Data:WaitForChild("Level").Value
-		local puzzles = Data:WaitForChild("Puzzles").Value
+		local Data = LocalPlayer:FindFirstChild("Data")
+		local gold = (Data and Data:FindFirstChild("Gold")) and Data.Gold.Value or 0
+		local level = (Data and Data:FindFirstChild("Level")) and Data.Level.Value or 0
+		local puzzles = (Data and Data:FindFirstChild("Puzzles")) and Data.Puzzles.Value or 0
 		local stageName = "Unknown Stage"
 		local stageSelect = Workspace:FindFirstChild("StageSelect")
 		if stageSelect then
 			stageName = stageSelect.Value
 		end
 		local timeStr = "00:00"
-		timeStr = LocalPlayer.PlayerGui.EndUI.UI.Stats_Grid.TotalTime.Frame.Val.Text
-		timeStr = ParseTime(timeStr)
-		local itemsCollected = {}
 		local EndUI = LocalPlayer.PlayerGui:FindFirstChild("EndUI")
 		if EndUI then
-			local itemContainer = EndUI:WaitForChild("UI"):WaitForChild("ItemYouGot")
-			for _, child in pairs(itemContainer:GetChildren()) do
-				if child:IsA("Frame") then
-					local countLabel = child:FindFirstChild("Count")
-					if countLabel then
-						table.insert(itemsCollected, string.format("- %s [%s]", child.Name, countLabel.Text))
+			pcall(function()
+				timeStr = EndUI.UI.Stats_Grid.TotalTime.Frame.Val.Text
+			end)
+		end
+		
+		timeStr = ParseTime(timeStr)
+		local itemsCollected = {}
+		
+		if EndUI then
+			local UI = EndUI:FindFirstChild("UI")
+			local itemContainer = UI and UI:FindFirstChild("ItemYouGot")
+			if itemContainer then
+				for _, child in pairs(itemContainer:GetChildren()) do
+					if child:IsA("Frame") then
+						local countLabel = child:FindFirstChild("Count")
+						if countLabel then
+							table.insert(itemsCollected, string.format("- %s [%s]", child.Name, countLabel.Text))
+						end
 					end
 				end
 			end
