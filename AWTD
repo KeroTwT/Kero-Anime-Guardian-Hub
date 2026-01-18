@@ -1230,7 +1230,7 @@ Window:SelectTab(1)
 local AutoConfigPath = LocalPlayer.Name .. AutoConfigName
 pcall(function() MacLib:LoadConfig(AutoConfigPath) end)
 task.spawn(function()
-	while task.wait(10) do
+	while task.wait(2) do
 		pcall(function() MacLib:SaveConfig(AutoConfigPath) end)
 	end
 end)
