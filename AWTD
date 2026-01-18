@@ -82,21 +82,248 @@ local function ParseTime(timeStr)
 	return timeStr
 end
 
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager =
-	loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(
-	game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua")
-)()
+-- MacLib Integration
+local MacLib = loadstring(game:HttpGet("https://github.com/biggaboy212/Maclib/releases/latest/download/maclib.txt"))()
+
+local Fluent = {}
+Fluent.Options = {}
+
+if MacLib and MacLib.SetFolder then
+    MacLib:SetFolder("AWTD_MacLib")
+end
+
+local function ResolveIcon(icon)
+    local iconMap = {
+        ["file-cog"] = "rbxassetid://10734950309",
+        ["star"] = "rbxassetid://18821914323",
+        ["home"] = "rbxassetid://10734950309",
+        ["bell"] = "rbxassetid://10734950309",
+        ["components"] = "rbxassetid://10734950309",
+        ["settings"] = "rbxassetid://10734950309"
+    }
+    if typeof(icon) == "string" then
+        return iconMap[icon] or icon
+    end
+    return "rbxassetid://10734950309"
+end
+
+function Fluent:CreateWindow(settings)
+    local window = MacLib:Window({
+        Title = settings.Title or "Window",
+        Subtitle = settings.SubTitle or settings.Subtitle or "",
+        Size = UDim2.fromOffset(868, 650),
+        DragStyle = settings.DragStyle,
+        DisabledWindowControls = settings.DisabledWindowControls or {},
+        ShowUserInfo = settings.ShowUserInfo ~= false,
+        Keybind = settings.MinimizeKey or settings.Keybind or Enum.KeyCode.RightControl,
+        AcrylicBlur = settings.Acrylic or settings.AcrylicBlur or false,
+    })
+
+    local tabGroup = window:TabGroup()
+    local tabList = {}
+
+    local windowWrapper = {
+        _maclib = window,
+        MinimizeKey = settings.MinimizeKey or settings.Keybind or Enum.KeyCode.RightControl
+    }
+
+    function windowWrapper:SetScale(scale)
+        if window and window.SetScale then
+            window:SetScale(scale)
+        end
+    end
+
+    function windowWrapper:GetScale()
+        if window and window.GetScale then
+            return window:GetScale()
+        end
+        return 1
+    end
+
+    Fluent.Options.MenuKeybind = { Value = windowWrapper.MinimizeKey }
+
+    function windowWrapper:AddTab(tabSettings)
+        local tab = tabGroup:Tab({
+            Name = tabSettings.Title or tabSettings.Name or "Tab",
+            Image = ResolveIcon(tabSettings.Icon or tabSettings.Image)
+        })
+        table.insert(tabList, tab)
+
+        local leftSection = tab:Section({ Side = "Left" })
+        local rightSection = tab:Section({ Side = "Right" })
+        local currentSection = leftSection
+
+        local tabWrapper = { _maclib = tab }
+
+        function tabWrapper:AddSection(title)
+            currentSection:Header({ Name = title or "" })
+        end
+
+        function tabWrapper:AddParagraph(paragraphSettings)
+            local paragraph = currentSection:Paragraph({
+                Header = paragraphSettings.Title or paragraphSettings.Header or "",
+                Body = paragraphSettings.Content or paragraphSettings.Body or ""
+            })
+
+            local paragraphWrapper = {}
+            function paragraphWrapper:SetTitle(newTitle)
+                paragraph:UpdateHeader(newTitle)
+            end
+            function paragraphWrapper:SetDesc(newDesc)
+                paragraph:UpdateBody(newDesc)
+            end
+            return paragraphWrapper
+        end
+
+        function tabWrapper:AddLabel(flag, labelSettings)
+        	if type(flag) == "table" and labelSettings == nil then
+        		labelSettings = flag
+        		flag = nil
+        	end
+        	if type(labelSettings) == "string" then
+        		labelSettings = { Text = labelSettings }
+        	end
+            local label = currentSection:Label({
+                Text = labelSettings.Title or labelSettings.Text or labelSettings.Name or ""
+            })
+            local labelWrapper = {}
+            function labelWrapper:SetText(newText)
+                label:UpdateName(newText)
+            end
+            return labelWrapper
+        end
+
+        function tabWrapper:AddInput(flag, inputSettings)
+            local accepted = inputSettings.AcceptedCharacters
+            if inputSettings.Numeric then
+                accepted = "Numeric"
+            end
+            if flag then
+                Fluent.Options[flag] = { Value = inputSettings.Default or "" }
+            end
+            return currentSection:Input({
+                Name = inputSettings.Title or inputSettings.Name or "Input",
+                Placeholder = inputSettings.Placeholder or "",
+                Default = inputSettings.Default or "",
+                AcceptedCharacters = accepted or "All",
+                Callback = function(v)
+                    if flag and Fluent.Options[flag] then Fluent.Options[flag].Value = v end
+                    if inputSettings.Callback then inputSettings.Callback(v) end
+                end,
+                onChanged = function(v)
+                    if flag and Fluent.Options[flag] then Fluent.Options[flag].Value = v end
+                    if inputSettings.Changed then inputSettings.Changed(v) end
+                    if inputSettings.OnChanged then inputSettings.OnChanged(v) end
+                end
+            }, flag)
+        end
+
+        function tabWrapper:AddToggle(flag, toggleSettings)
+            local onChangedCallback
+            if flag then
+                Fluent.Options[flag] = { Value = toggleSettings.Default or false }
+            end
+            local toggle = currentSection:Toggle({
+                Name = toggleSettings.Title or toggleSettings.Name or "Toggle",
+                Default = toggleSettings.Default or false,
+                Callback = function(value)
+                    if flag and Fluent.Options[flag] then Fluent.Options[flag].Value = value end
+                    if toggleSettings.Callback then toggleSettings.Callback(value) end
+                    if onChangedCallback then onChangedCallback(value) end
+                end
+            }, flag)
+            function toggle:OnChanged(callback)
+                onChangedCallback = callback
+                return toggle
+            end
+            return toggle
+        end
+
+        function tabWrapper:AddDropdown(flag, dropdownSettings)
+            if flag then
+                Fluent.Options[flag] = { Value = dropdownSettings.Default }
+            end
+            local dropdown = currentSection:Dropdown({
+                Name = dropdownSettings.Title or dropdownSettings.Name or "Dropdown",
+                Options = dropdownSettings.Values or dropdownSettings.Options or {},
+                Default = dropdownSettings.Default,
+                Multi = dropdownSettings.Multi or false,
+                Required = dropdownSettings.Required,
+                Search = dropdownSettings.Search,
+                Callback = function(v)
+                    if flag and Fluent.Options[flag] then Fluent.Options[flag].Value = v end
+                    if dropdownSettings.Callback then dropdownSettings.Callback(v) end
+                end
+            }, flag)
+
+            if flag then
+                Fluent.Options[flag] = dropdown
+                dropdown.Value = dropdownSettings.Default
+            end
+
+            function dropdown:SetValues(values)
+                local newValues = values or {}
+                if dropdown.SetOptions then
+                    dropdown:SetOptions(newValues)
+                elseif dropdown.ClearOptions and dropdown.InsertOptions then
+                    dropdown:ClearOptions()
+                    dropdown:InsertOptions(newValues)
+                else
+                    dropdown.Settings.Options = newValues
+                end
+                if dropdown.Refresh then
+                    dropdown:Refresh(newValues)
+                end
+            end
+            function dropdown:SetValue(value)
+                if dropdown.UpdateSelection then
+                    dropdown:UpdateSelection(value)
+                end
+                
+                -- Also try Set method if UpdateSelection doesn't exist
+                if not dropdown.UpdateSelection and dropdown.Set then
+                     dropdown:Set(value)
+                end
+
+                if flag and Fluent.Options[flag] then 
+                    Fluent.Options[flag].Value = value 
+                else
+                    dropdown.Value = value
+                end
+            end
+            return dropdown
+        end
+
+        function tabWrapper:AddButton(buttonSettings)
+            return currentSection:Button({
+                Name = buttonSettings.Title or buttonSettings.Name or "Button",
+                Callback = buttonSettings.Callback
+            })
+        end
+
+        return tabWrapper
+    end
+
+    function windowWrapper:SelectTab(index)
+        local tab = tabList[index]
+        if tab and tab.Select then
+            tab:Select()
+        end
+    end
+
+    return windowWrapper
+end
 
 local Window = Fluent:CreateWindow({
 	Title = "AWTD",
 	SubTitle = "Made By Kero:33",
 	TabWidth = 160,
-	Size = UDim2.fromOffset(580, 460),
+	Size = UDim2.fromOffset(868, 650),
 	Acrylic = true,
 	Theme = "Dark",
 	MinimizeKey = Enum.KeyCode.RightControl,
+	DragStyle = 2,
+	ShowUserInfo = false,
 })
 
 task.spawn(function()
@@ -470,7 +697,6 @@ local Tabs = {
 	Lobby = Window:AddTab({ Title = "Lobby Manager", Icon = "home" }),
 	Webhook = Window:AddTab({ Title = "Webhook Manager", Icon = "bell" }),
 	Misc = Window:AddTab({ Title = "Misc", Icon = "components" }),
-	Settings = Window:AddTab({ Title = "Settings", Icon = "settings" }),
 }
 local Options = Fluent.Options
 
@@ -562,6 +788,15 @@ Tabs.Macro:AddToggle("PlayToggle", { Title = "Play", Default = getgenv().AutoRes
 	getgenv().AutoResumeState = v
 	if v then
 		isRecording = false
+		if #currentMacroData == 0 and currentMacroName == "" then
+			local f = GetMacroFiles()
+			if #f > 0 then
+				LoadMacro(f[1])
+				if Options.FileSelect then
+					Options.FileSelect:SetValue(f[1])
+				end
+			end
+		end
 		playMacro()
 	else
 		isPlaying = false
@@ -925,6 +1160,19 @@ Tabs.Misc:AddButton({
 	end,
 })
 
+Tabs.Misc:AddSection("Panda Hub Settings")
+Tabs.Misc:AddInput("UIScale", {
+    Title = "UI Scale",
+    Default = "1",
+    Numeric = false,
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if num and Window._maclib and Window._maclib.SetScale then
+            Window._maclib:SetScale(num)
+        end
+    end
+})
+
 Tabs.Misc:AddSection("Privacy")
 Tabs.Misc:AddToggle("HideUser", { Title = "Hide User", Default = false }):OnChanged(function(v)
 	getgenv().HideUserLoop = v
@@ -970,17 +1218,12 @@ Tabs.Misc:AddToggle("HideUser", { Title = "Hide User", Default = false }):OnChan
 	end
 end)
 
-SaveManager:SetLibrary(Fluent)
-SaveManager:IgnoreThemeSettings()
-SaveManager:SetIgnoreIndexes({})
-SaveManager:BuildConfigSection(Tabs.Settings)
-InterfaceManager:SetLibrary(Fluent)
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
 Window:SelectTab(1)
-SaveManager:Load(LocalPlayer.Name .. AutoConfigName)
+local AutoConfigPath = LocalPlayer.Name .. AutoConfigName
+pcall(function() MacLib:LoadConfig(AutoConfigPath) end)
 task.spawn(function()
-	while task.wait(5) do
-		SaveManager:Save(LocalPlayer.Name .. AutoConfigName)
+	while task.wait(10) do
+		pcall(function() MacLib:SaveConfig(AutoConfigPath) end)
 	end
 end)
 
@@ -1159,8 +1402,12 @@ if getgenv().AutoResumeState then
 			local f = GetMacroFiles()
 			if #f > 0 then
 				LoadMacro(f[1])
+				if Options.FileSelect then
+					Options.FileSelect:SetValue(f[1])
+				end
 			end
 		end
+		playMacro()
 	end)
 end
 
