@@ -112,7 +112,7 @@ function Fluent:CreateWindow(settings)
         Title = settings.Title or "Window",
         Subtitle = settings.SubTitle or settings.Subtitle or "",
         Size = UDim2.fromOffset(868, 650),
-        DragStyle = settings.DragStyle or 1,
+        DragStyle = settings.DragStyle,
         DisabledWindowControls = settings.DisabledWindowControls or {},
         ShowUserInfo = settings.ShowUserInfo ~= false,
         Keybind = settings.MinimizeKey or settings.Keybind or Enum.KeyCode.RightControl,
@@ -255,20 +255,41 @@ function Fluent:CreateWindow(settings)
                     if dropdownSettings.Callback then dropdownSettings.Callback(v) end
                 end
             }, flag)
+
+            if flag then
+                Fluent.Options[flag] = dropdown
+                dropdown.Value = dropdownSettings.Default
+            end
+
             function dropdown:SetValues(values)
                 local newValues = values or {}
-                if dropdown.ClearOptions and dropdown.InsertOptions then
+                if dropdown.SetOptions then
+                    dropdown:SetOptions(newValues)
+                elseif dropdown.ClearOptions and dropdown.InsertOptions then
                     dropdown:ClearOptions()
                     dropdown:InsertOptions(newValues)
                 else
                     dropdown.Settings.Options = newValues
+                end
+                if dropdown.Refresh then
+                    dropdown:Refresh(newValues)
                 end
             end
             function dropdown:SetValue(value)
                 if dropdown.UpdateSelection then
                     dropdown:UpdateSelection(value)
                 end
-                if flag and Fluent.Options[flag] then Fluent.Options[flag].Value = value end
+                
+                -- Also try Set method if UpdateSelection doesn't exist
+                if not dropdown.UpdateSelection and dropdown.Set then
+                     dropdown:Set(value)
+                end
+
+                if flag and Fluent.Options[flag] then 
+                    Fluent.Options[flag].Value = value 
+                else
+                    dropdown.Value = value
+                end
             end
             return dropdown
         end
@@ -301,6 +322,8 @@ local Window = Fluent:CreateWindow({
 	Acrylic = true,
 	Theme = "Dark",
 	MinimizeKey = Enum.KeyCode.RightControl,
+	DragStyle = 2,
+	ShowUserInfo = false,
 })
 
 task.spawn(function()
@@ -765,6 +788,15 @@ Tabs.Macro:AddToggle("PlayToggle", { Title = "Play", Default = getgenv().AutoRes
 	getgenv().AutoResumeState = v
 	if v then
 		isRecording = false
+		if #currentMacroData == 0 and currentMacroName == "" then
+			local f = GetMacroFiles()
+			if #f > 0 then
+				LoadMacro(f[1])
+				if Options.FileSelect then
+					Options.FileSelect:SetValue(f[1])
+				end
+			end
+		end
 		playMacro()
 	else
 		isPlaying = false
@@ -1132,7 +1164,7 @@ Tabs.Misc:AddSection("Panda Hub Settings")
 Tabs.Misc:AddInput("UIScale", {
     Title = "UI Scale",
     Default = "1",
-    Numeric = true,
+    Numeric = false,
     Callback = function(Value)
         local num = tonumber(Value)
         if num and Window._maclib and Window._maclib.SetScale then
@@ -1370,8 +1402,12 @@ if getgenv().AutoResumeState then
 			local f = GetMacroFiles()
 			if #f > 0 then
 				LoadMacro(f[1])
+				if Options.FileSelect then
+					Options.FileSelect:SetValue(f[1])
+				end
 			end
 		end
+		playMacro()
 	end)
 end
 
