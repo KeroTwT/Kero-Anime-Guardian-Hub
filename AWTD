@@ -1305,7 +1305,7 @@ Tabs.Misc:AddButton({
 	end,
 })
 
-Tabs.Misc:AddSection("Panda Hub Settings")
+Tabs.Misc:AddSection("Hub Settings")
 Tabs.Misc:AddInput("UIScale", {
     Title = "UI Scale",
     Default = "1",
