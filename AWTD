@@ -155,7 +155,12 @@ function Fluent:CreateWindow(settings)
 
         local tabWrapper = { _maclib = tab }
 
-        function tabWrapper:AddSection(title)
+        function tabWrapper:AddSection(title, side)
+            if side and (side == "Right" or side == "right") then
+                currentSection = rightSection
+            elseif side and (side == "Left" or side == "left") then
+                currentSection = leftSection
+            end
             currentSection:Header({ Name = title or "" })
         end
 
@@ -317,7 +322,7 @@ local Window = Fluent:CreateWindow({
 	Title = "AWTD",
 	SubTitle = "Made By Kero:33",
 	TabWidth = 160,
-	Size = UDim2.fromOffset(868, 650),
+	Size = UDim2.fromOffset(868, 600), -- Slightly increased height
 	Acrylic = true,
 	Theme = "Dark",
 	MinimizeKey = Enum.KeyCode.RightControl,
@@ -724,6 +729,7 @@ Tabs.Macro:AddDropdown("FileSelect", {
 	Title = "Select File",
 	Values = GetMacroFiles(),
 	Default = 1,
+	Search = true,
 	Callback = function(v)
 		if v then
 			LoadMacro(v)
@@ -779,6 +785,7 @@ Tabs.Macro:AddDropdown("ModeSelect", {
 	Title = "Mode",
 	Values = { "Time", "Money", "Hybrid" },
 	Default = "Hybrid",
+	Search = true,
 	Callback = function(v)
 		playbackMode = v
 	end,
@@ -849,7 +856,7 @@ Tabs.Lobby:AddInput("LeaveCountNum", { Title = "Match Count Limit", Default = "5
 Tabs.Lobby:AddSection("Event")
 Tabs.Lobby:AddDropdown(
 	"EventTimeSelect",
-	{ Title = "Select Time", Values = { "Day", "Night", "Cycle" }, Default = "Cycle" }
+	{ Title = "Select Time", Values = { "Day", "Night", "Cycle" }, Default = "Cycle", Search = true }
 )
 Tabs.Lobby:AddToggle("AutoPickTime", { Title = "Auto Pick Time", Default = false }):OnChanged(function(v)
 	getgenv().AutoEventTimeLoop = v
@@ -900,8 +907,9 @@ Tabs.Lobby:AddToggle("AutoGrave", { Title = "Auto Reveal Graves", Default = fals
 		end)
 	end
 end)
+Tabs.Lobby:AddLabel("spacer_for_dropdown", {Text = " "})
 
-Tabs.Lobby:AddSection("Abyss Bypass")
+Tabs.Lobby:AddSection("Abyss Bypass", "Right")
 Tabs.Lobby:AddInput(
 	"AbyssFloorInput",
 	{ Title = "Bypass Abyss Floor", Default = "40", Numeric = true, Callback = function(v) end }
@@ -925,7 +933,7 @@ Tabs.Lobby:AddToggle("AutoJoinAbyss", { Title = "Auto Join Abyss", Default = fal
 		end)
 	end
 end)
-Tabs.Lobby:AddSection("Create/Join Room")
+Tabs.Lobby:AddSection("Create/Join Room", "Right")
 local MapData = {
 	["Event Stage"] = { "Boss Rush", "Random Unit", "Forbidden Graveyard", "Training Field", "Work Field" },
 	["Resource Mode"] = {
@@ -975,6 +983,7 @@ Tabs.Lobby:AddDropdown("RoomMode", {
 	Title = "Select Mode",
 	Values = ModeList,
 	Default = "Special Event",
+	Search = true,
 	Callback = function(Value)
 		if Options.RoomStage then
 			Options.RoomStage:SetValues(MapData[Value] or {})
@@ -984,9 +993,9 @@ Tabs.Lobby:AddDropdown("RoomMode", {
 })
 Tabs.Lobby:AddDropdown(
 	"RoomStage",
-	{ Title = "Select Stage", Values = MapData["Special Event"], Default = "Reaper Town" }
+	{ Title = "Select Stage", Values = MapData["Special Event"], Default = "Reaper Town", Search = true }
 )
-Tabs.Lobby:AddDropdown("RoomDiff", { Title = "Select Difficulty", Values = DiffList, Default = "Unique" })
+Tabs.Lobby:AddDropdown("RoomDiff", { Title = "Select Difficulty", Values = DiffList, Default = "Unique", Search = true })
 Tabs.Lobby:AddToggle("RoomFriendOnly", { Title = "Friend Only", Default = false })
 Tabs.Lobby:AddToggle("AutoCreateRoom", { Title = "Auto Join/Create", Default = false }):OnChanged(function(v)
 	getgenv().AutoCreateLoop = v
@@ -1018,6 +1027,118 @@ Tabs.Lobby:AddToggle("AutoCreateRoom", { Title = "Auto Join/Create", Default = f
 					end
 				end
 				task.wait(1)
+			end
+		end)
+	end
+end)
+
+Tabs.Lobby:AddSection("Auto Pick Card", "Right")
+Tabs.Lobby:AddInput(
+	"Priority_ATK",
+	{ Title = "[ATK] Priority", Default = "1", Numeric = true, Finished = true, Callback = function(v) end }
+)
+Tabs.Lobby:AddInput(
+	"Priority_Mixed",
+	{ Title = "[Mixed ATK] Priority", Default = "2", Numeric = true, Finished = true, Callback = function(v) end }
+)
+Tabs.Lobby:AddInput(
+	"Priority_DOT",
+	{ Title = "[DOT] Priority", Default = "3", Numeric = true, Finished = true, Callback = function(v) end }
+)
+Tabs.Lobby:AddInput(
+	"Priority_Summon",
+	{ Title = "[Summon] Priority", Default = "4", Numeric = true, Finished = true, Callback = function(v) end }
+)
+
+Tabs.Lobby:AddInput(
+	"Limit_ATK",
+	{ Title = "[ATK] Limit", Default = "99", Numeric = true, Finished = true, Callback = function(v) end }
+)
+Tabs.Lobby:AddInput(
+	"Limit_Mixed",
+	{ Title = "[Mixed ATK] Limit", Default = "5", Numeric = true, Finished = true, Callback = function(v) end }
+)
+Tabs.Lobby:AddInput(
+	"Limit_DOT",
+	{ Title = "[DOT] Limit", Default = "99", Numeric = true, Finished = true, Callback = function(v) end }
+)
+Tabs.Lobby:AddInput(
+	"Limit_Summon",
+	{ Title = "[Summon] Limit", Default = "99", Numeric = true, Finished = true, Callback = function(v) end }
+)
+
+local CardPickCounters = { ATK = 0, RNG = 0, ElementPower = 0, Tamer = 0 }
+Tabs.Lobby:AddToggle("AutoPickCard", { Title = "Enable Auto Pick Card", Default = false }):OnChanged(function(v)
+	getgenv().AutoPickCardLoop = v
+	if v then
+		CardPickCounters = { ATK = 0, RNG = 0, ElementPower = 0, Tamer = 0 }
+		task.spawn(function()
+			while getgenv().AutoPickCardLoop do
+				pcall(function()
+					local BuffInterface = LocalPlayer.PlayerGui:FindFirstChild("BuffInterface")
+					if BuffInterface and BuffInterface.Enabled then
+						local List = BuffInterface:FindFirstChild("BuffSelection")
+							and BuffInterface.BuffSelection:FindFirstChild("List")
+						if List then
+							local cards = {
+								{
+									Type = "ATK",
+									Path = List:FindFirstChild("ATK"),
+									Priority = tonumber(Options.Priority_ATK.Value) or 99,
+									Limit = tonumber(Options.Limit_ATK.Value) or 0,
+								},
+								{
+									Type = "RNG",
+									Path = List:FindFirstChild("RNG"),
+									Priority = tonumber(Options.Priority_Mixed.Value) or 99,
+									Limit = tonumber(Options.Limit_Mixed.Value) or 0,
+								},
+								{
+									Type = "ElementPower",
+									Path = List:FindFirstChild("ElementPower"),
+									Priority = tonumber(Options.Priority_DOT.Value) or 99,
+									Limit = tonumber(Options.Limit_DOT.Value) or 0,
+								},
+								{
+									Type = "Tamer",
+									Path = List:FindFirstChild("Tamer"),
+									Priority = tonumber(Options.Priority_Summon.Value) or 99,
+									Limit = tonumber(Options.Limit_Summon.Value) or 0,
+								},
+							}
+							local validCards = {}
+							for _, c in pairs(cards) do
+								if c.Path and c.Path.Visible and c.Path:FindFirstChild("Pick") then
+									table.insert(validCards, c)
+								end
+							end
+							table.sort(validCards, function(a, b)
+								return a.Priority < b.Priority
+							end)
+							for _, c in pairs(validCards) do
+								local currentCount = CardPickCounters[c.Type] or 0
+								if currentCount < c.Limit then
+									local btn = c.Path.Pick
+									if firebutton then
+										firebutton(btn)
+									else
+										local vim = game:GetService("VirtualInputManager")
+										local pos = btn.AbsolutePosition
+										local size = btn.AbsoluteSize
+										local center = pos + size / 2
+										vim:SendMouseButtonEvent(center.X, center.Y, 0, true, game, 1)
+										task.wait(0.1)
+										vim:SendMouseButtonEvent(center.X, center.Y, 0, false, game, 1)
+									end
+									CardPickCounters[c.Type] = currentCount + 1
+									task.wait(1)
+									break
+								end
+							end
+						end
+					end
+				end)
+				task.wait(0.5)
 			end
 		end)
 	end
