@@ -1305,6 +1305,23 @@ Tabs.Misc:AddButton({
 	end,
 })
 
+Tabs.Misc:AddSection("Panda Hub Settings")
+Tabs.Misc:AddInput("UIScale", {
+    Title = "UI Scale",
+    Default = "1",
+    Numeric = false,
+    Callback = function(Value)
+        local num = tonumber(Value)
+        if not num then return end
+        
+        num = math.clamp(num, 0.5, 2)
+        
+        if Window and Window._maclib and Window._maclib.SetScale then
+            Window._maclib:SetScale(num)
+        end
+    end
+})
+
 Tabs.Misc:AddSection("Privacy")
 Tabs.Misc:AddToggle("HideUser", { Title = "Hide User", Default = false }):OnChanged(function(v)
 	getgenv().HideUserLoop = v
