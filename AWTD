@@ -330,6 +330,22 @@ local Window = Fluent:CreateWindow({
 	ShowUserInfo = false,
 })
 
+getgenv().AWTDWindow = Window
+
+-- Lưu reference của ScreenGui để dùng cho UI Scale
+task.spawn(function()
+	task.wait(1)
+	for _, gui in pairs(CoreGui:GetChildren()) do
+		if gui:IsA("ScreenGui") and gui.Name ~= "FluentMobileToggle_Fix_Duc" then
+			local frame = gui:FindFirstChildOfClass("Frame")
+			if frame and (frame:FindFirstChild("Topbar") or frame:FindFirstChild("TopBar") or frame:FindFirstChild("TabContainer")) then
+				getgenv().AWTDScreenGui = gui
+				break
+			end
+		end
+	end
+end)
+
 task.spawn(function()
 	local IconImageID = "rbxassetid://80972749206953"
 	local ToggleGui = Instance.new("ScreenGui")
@@ -1287,19 +1303,6 @@ Tabs.Misc:AddButton({
 			end
 		end
 	end,
-})
-
-Tabs.Misc:AddSection("Panda Hub Settings")
-Tabs.Misc:AddInput("UIScale", {
-    Title = "UI Scale",
-    Default = "1",
-    Numeric = false,
-    Callback = function(Value)
-        local num = tonumber(Value)
-        if num and Window._maclib and Window._maclib.SetScale then
-            Window._maclib:SetScale(num)
-        end
-    end
 })
 
 Tabs.Misc:AddSection("Privacy")
