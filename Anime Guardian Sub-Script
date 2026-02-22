@@ -35,6 +35,7 @@ local customAncientFloor = 1
 
 -- Restart Variables
 local targetCoins = 0
+local targetDio = 0
 local targetWave = 0
 local isAutoRestart = false
 
@@ -43,6 +44,8 @@ local isAutoBeherit = false
 local targetBeherit = 0
 local isAutoAncient = false
 local targetAncient = 0
+local isAutoDioTeleport = false
+local targetDioTeleport = 0
 
 -- Shop Variables
 local isAutoBuyCapsule = false
@@ -216,6 +219,7 @@ GameTab:CreateDropdown({Name="Priority 4", Options=modifierList, CurrentOption={
 GameTab:CreateSection("Auto Restart")
 GameTab:CreateToggle({Name="Auto Restart", CurrentValue=false, Flag="Restart_Master", Callback=function(V) isAutoRestart=V end})
 GameTab:CreateInput({Name="Target Coins", PlaceholderText="0", Flag="Restart_Coins", Callback=function(T) targetCoins=tonumber(T) or 0 end})
+GameTab:CreateInput({Name="Target Dio Present", PlaceholderText="0", Flag="Restart_Dio", Callback=function(T) targetDio=tonumber(T) or 0 end})
 GameTab:CreateInput({Name="Target Wave", PlaceholderText="0", Flag="Restart_Wave", Callback=function(T) targetWave=tonumber(T) or 0 end})
 local StatusLabel = GameTab:CreateLabel("Status: Waiting...")
 
@@ -224,6 +228,8 @@ GameTab:CreateToggle({Name="TP on Beherit", CurrentValue=false, Flag="TP_Beherit
 GameTab:CreateInput({Name="Target Beherit", PlaceholderText="Amount", Flag="TP_Beherit_Num", Callback=function(T) targetBeherit=tonumber(T) or 0 end})
 GameTab:CreateToggle({Name="TP on Ancient", CurrentValue=false, Flag="TP_Ancient", Callback=function(V) isAutoAncient=V end})
 GameTab:CreateInput({Name="Target Ancient", PlaceholderText="Amount", Flag="TP_Ancient_Num", Callback=function(T) targetAncient=tonumber(T) or 0 end})
+GameTab:CreateToggle({Name="TP on Dio Present", CurrentValue=false, Flag="TP_Dio", Callback=function(V) isAutoDioTeleport=V end})
+GameTab:CreateInput({Name="Target Dio Present", PlaceholderText="Amount", Flag="TP_Dio_Num", Callback=function(T) targetDioTeleport=tonumber(T) or 0 end})
 local TeleportLabel = GameTab:CreateLabel("Inventory: Waiting...")
 
 -- =============================================
@@ -387,14 +393,21 @@ end)
 task.spawn(function()
     while true do
         local currentCoin = 0
+        local currentDio = 0
         if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
            and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
-           and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("RewardFrame") 
-           and LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame:FindFirstChild("ChristmasCoin") then
-            currentCoin = cleanNumber(LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame.ChristmasCoin.Text)
+           and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("RewardFrame") then
+            
+            local rewardFrame = LocalPlayer.PlayerGui.GUI.BaseFrame.RewardFrame
+            if rewardFrame:FindFirstChild("ChristmasCoin") then
+                currentCoin = cleanNumber(rewardFrame.ChristmasCoin.Text)
+            end
+            if rewardFrame:FindFirstChild("Dio Presents") then
+                currentDio = cleanNumber(rewardFrame["Dio Presents"].Text)
+            end
         end
         local currentWave = getCurrentWave()
-        StatusLabel:Set("Coin: " .. currentCoin .. " / " .. targetCoins .. " | Wave: " .. currentWave .. " / " .. targetWave)
+        StatusLabel:Set("Coin: " .. currentCoin .. " / " .. targetCoins .. " | Dio: " .. currentDio .. " / " .. targetDio .. " | Wave: " .. currentWave .. " / " .. targetWave)
 
         if isAutoRestart then
             local MiscAction = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Misc") and ReplicatedStorage.Remotes.Misc:FindFirstChild("Action")
@@ -402,6 +415,10 @@ task.spawn(function()
                 local shouldRestart = false
                 if targetCoins > 0 and currentCoin >= targetCoins then
                     Rayfield:Notify({Title = "Restarting", Content = "Target Coins Reached!", Duration = 3})
+                    shouldRestart = true
+                end
+                if targetDio > 0 and currentDio >= targetDio then
+                    Rayfield:Notify({Title = "Restarting", Content = "Target Dio Reached!", Duration = 3})
                     shouldRestart = true
                 end
                 if targetWave > 0 and currentWave >= targetWave then
@@ -450,7 +467,8 @@ task.spawn(function()
         local inv = LocalPlayer:FindFirstChild("ItemsInventory")
         local curBeherit = inv and inv:FindFirstChild("Beherit") and inv.Beherit:FindFirstChild("Amount") and inv.Beherit.Amount.Value or 0
         local curAncient = inv and inv:FindFirstChild("Dragonpoints") and inv.Dragonpoints:FindFirstChild("Amount") and inv.Dragonpoints.Amount.Value or 0
-        TeleportLabel:Set("Beherit: " .. curBeherit .. " | Ancient: " .. curAncient)
+        local curDio = inv and inv:FindFirstChild("Dio Presents") and inv["Dio Presents"]:FindFirstChild("Amount") and inv["Dio Presents"].Amount.Value or 0
+        TeleportLabel:Set("Beherit: " .. curBeherit .. " | Ancient: " .. curAncient .. " | Dio: " .. curDio)
         
         local TeleportRemote = ReplicatedStorage:FindFirstChild("Remotes") and ReplicatedStorage.Remotes:FindFirstChild("Misc") and ReplicatedStorage.Remotes.Misc:FindFirstChild("Teleport")
         
@@ -462,6 +480,11 @@ task.spawn(function()
             end
             if isAutoAncient and targetAncient > 0 and curAncient >= targetAncient then
                 Rayfield:Notify({Title = "Teleporting", Content = "Ancient Points Target Reached!", Duration = 3})
+                TeleportRemote:FireServer("Lobby")
+                break
+            end
+            if isAutoDioTeleport and targetDioTeleport > 0 and curDio >= targetDioTeleport then
+                Rayfield:Notify({Title = "Teleporting", Content = "Dio Target Reached!", Duration = 3})
                 TeleportRemote:FireServer("Lobby")
                 break
             end

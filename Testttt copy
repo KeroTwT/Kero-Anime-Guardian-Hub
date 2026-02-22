@@ -1,0 +1,8 @@
+while true do
+    local args = {
+        [1] = "MegaZed";
+    }
+
+    game:GetService("ReplicatedStorage"):WaitForChild("Network", 9e9):WaitForChild("ClientPurchasePowerUpRequest", 9e9):FireServer(unpack(args))
+    task.wait(0.1)
+end

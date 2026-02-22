@@ -1,0 +1,121 @@
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+
+if game.PlaceId == 9503261072 then
+    return
+end
+
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+local Interface = PlayerGui:WaitForChild("Interface")
+local UpgradeShopScreen = Interface:WaitForChild("UpgradeShopScreen")
+local CreditsButton = UpgradeShopScreen:WaitForChild("CreditsButton")
+local label = CreditsButton:WaitForChild("TextLabel")
+
+local Remotes = ReplicatedStorage:WaitForChild("Remotes")
+local remote = Remotes:WaitForChild("UpgradeShopOperationRequest")
+
+local upgradeQueue = {
+    { tower = "Helicopter", upgrade = "Range", cost = 175 },
+    { tower = "Helicopter", upgrade = "Range", cost = 275 },
+    { tower = "Helicopter", upgrade = "Range", cost = 375 },
+    { tower = "Helicopter", upgrade = "Range", cost = 475 },
+    { tower = "Helicopter", upgrade = "Range", cost = 575 },
+    { tower = "Helicopter", upgrade = "Damage", cost = 400 },
+    { tower = "Helicopter", upgrade = "Damage", cost = 1000 },
+    { tower = "Helicopter", upgrade = "Damage", cost = 1600 },
+    { tower = "Helicopter", upgrade = "Damage", cost = 2200 },
+    { tower = "Helicopter", upgrade = "Damage", cost = 2800 },
+    { tower = "Helicopter", upgrade = "Health", cost = 100 },
+    { tower = "Helicopter", upgrade = "Health", cost = 250 },
+    { tower = "XWM Turret", upgrade = "Range", cost = 150 },
+    { tower = "XWM Turret", upgrade = "Range", cost = 275 },
+    { tower = "XWM Turret", upgrade = "Splash", cost = 150 },
+    { tower = "XWM Turret", upgrade = "Splash", cost = 325 },
+    { tower = "XWM Turret", upgrade = "Damage", cost = 250 },
+    { tower = "XWM Turret", upgrade = "Damage", cost = 550 },
+    { tower = "XWM Turret", upgrade = "Damage", cost = 850 },
+    { tower = "XWM Turret", upgrade = "Damage", cost = 1150 },
+    { tower = "XWM Turret", upgrade = "Damage", cost = 1450 },
+    { tower = "XWM Turret", upgrade = "Health", cost = 175 },
+    { tower = "XWM Turret", upgrade = "Health", cost = 300 },
+    { tower = "XWM Turret", upgrade = "Health", cost = 425 },
+    { tower = "XWM Turret", upgrade = "Health", cost = 550 },
+    { tower = "XWM Turret", upgrade = "Health", cost = 675 },
+    { tower = "XWM Turret", upgrade = "Range", cost = 400 },
+    { tower = "XWM Turret", upgrade = "Range", cost = 525 },
+    { tower = "XWM Turret", upgrade = "Range", cost = 650 },
+    { tower = "XWM Turret", upgrade = "Splash", cost = 500 },
+    { tower = "XWM Turret", upgrade = "Splash", cost = 675 },
+    { tower = "XWM Turret", upgrade = "Splash", cost = 850 },
+}
+
+local index = 1
+
+local function getUpgradeCost(tower, upgrade)
+    local InnerFrame = UpgradeShopScreen:FindFirstChild("InnerFrame")
+    if not InnerFrame then return nil end
+    local RightFrame = InnerFrame:FindFirstChild("RightFrame")
+    if not RightFrame then return nil end
+    
+    for _, child in pairs(RightFrame:GetChildren()) do
+        if (child:IsA("Frame") or child:IsA("ImageButton")) and 
+           string.find(child.Name, tower, 1, true) and 
+           string.find(child.Name, upgrade, 1, true) then
+            
+            local CostFrame = child:FindFirstChild("CostFrame")
+            local TextLabel = CostFrame and CostFrame:FindFirstChild("TextLabel")
+            if TextLabel then
+                if TextLabel.Text == "N/A" then return "N/A" end
+                return tonumber(TextLabel.Text:gsub("[^%d]", ""))
+            end
+        end
+    end
+    return nil
+end
+
+while task.wait(0.5) do
+    local success_label, credits_str = pcall(function() return label.Text end)
+    if not success_label then continue end
+    
+    local credits = tonumber(credits_str:gsub("[^%d]", ""))
+    if not credits then continue end
+
+    local step = upgradeQueue[index]
+    if not step then 
+        print("Completed all upgrades in queue.")
+        break 
+    end
+
+    local uiCost = getUpgradeCost(step.tower, step.upgrade)
+    
+    if uiCost == "N/A" then
+        print("Item Maxed (N/A) - Skipping:", step.tower, step.upgrade)
+        index += 1
+        continue
+    end
+
+    if type(uiCost) == "number" then
+        if uiCost > step.cost then
+            -- Giá trên UI đã tăng lên so với giá cần mua hiện tại => Đã mua thành công lần trước
+            print("Price changed (Bought) - Next step:", step.cost, "->", uiCost)
+            index += 1
+            continue
+        elseif uiCost == step.cost then
+            -- Giá khớp, kiểm tra tiền để mua
+            if credits >= step.cost then
+                print("Buying ["..index.."]: " .. step.tower .. " - " .. step.upgrade .. " | Cost: " .. step.cost)
+                
+                pcall(function()
+                    remote:InvokeServer(step.tower, step.upgrade)
+                end)
+                
+                task.wait(0.5) -- Đợi server/UI cập nhật
+            end
+        else
+            -- uiCost < step.cost: Trường hợp hiếm (có thể lag hoặc sai thứ tự), cứ đợi loop sau check lại
+        end
+    else
+        -- Không tìm thấy UI (có thể chưa mở bảng hoặc scroll chưa tới), đợi loop tiếp theo
+    end
+end
