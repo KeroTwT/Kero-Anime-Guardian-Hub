@@ -7,3 +7,4 @@ AG: ```loadstring(game:HttpGet("https://raw.githubusercontent.com/KeroTwT/Kero-H
 AAC: ```loadstring(game:HttpGet("https://raw.githubusercontent.com/KeroTwT/Kero-Hub/refs/heads/main/Anime%20Auto%20Chess"))()```
 
 Ww2: ```loadstring(game:HttpGet("https://raw.githubusercontent.com/KeroTwT/Kero-Hub/refs/heads/main/Ww2"))()```
+a
