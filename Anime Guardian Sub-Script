@@ -114,10 +114,10 @@ local allCardsList = {
     "Upon killing boss will gain +1 Guild Point",
     "Yen Boost",
 }
--- Per-card config: { [cardName] = {priority=0, limit=99} }
+-- Per-card config: { [cardName] = {priority=0, limit=0} }
 local cardConfig = {}
 for _, name in ipairs(allCardsList) do
-    cardConfig[name] = { priority = 0, limit = 99 }
+    cardConfig[name] = { priority = 0, limit = 0 }
 end
 
 -- =============================================
@@ -386,11 +386,11 @@ for idx, cardName in ipairs(allCardsList) do
         end,
     })
     CardTab:CreateInput({
-        Name = "Limit (max picks, 0=no limit)",
-        PlaceholderText = "99",
+        Name = "Limit (max picks, 0=off)",
+        PlaceholderText = "0",
         Flag = "Card_L_" .. idx,
         Callback = function(T)
-            cardConfig[cardName].limit = tonumber(T) or 99
+            cardConfig[cardName].limit = tonumber(T) or 0
         end,
     })
 end
@@ -691,8 +691,8 @@ task.spawn(function()
                     if cfg and cfg.priority > 0 then
                         local currentCount = getCardGameCount(cardName)
                         -- Check if limit is set (>0) and count hasn't exceeded it
-                        local withinLimit = (cfg.limit <= 0) or (currentCount < cfg.limit)
-                        if withinLimit and cfg.priority < bestPriority then
+                        local withinLimit = (cfg.limit > 0) and (currentCount < cfg.limit)
+                        if withinLimit and cfg.priority > 0 and cfg.priority < bestPriority then
                             bestCard = cardName
                             bestPriority = cfg.priority
                         end
@@ -707,7 +707,7 @@ task.spawn(function()
                         CardVote:FireServer(bestCard)
                     end)
                     if ok then
-                        local limitStr = cfg.limit > 0 and tostring(cfg.limit) or "∞"
+                        local limitStr = tostring(cfg.limit)
                         CardStatusLabel:Set("Voted: " .. bestCard .. " [" .. currentCount .. "/" .. limitStr .. "] | Shown: " .. table.concat(displayed, ", "))
                     else
                         CardStatusLabel:Set("Error: " .. tostring(err))
