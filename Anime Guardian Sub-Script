@@ -71,6 +71,14 @@ local prioritySlot3 = "Saiya"
 local prioritySlot4 = "Time Snare"
 local modifierList = {"None", "Golden Tribute", "Power Surge", "Saiya", "Time Snare"}
 
+-- Auto Play Variables
+local isAutoPlay = false
+local targetWaypoint = 1
+local placementRadius = 15
+local actionDelay = 0.5
+local upgradeDelay = 0.5
+local upgradePriorities = {0, 0, 0, 0, 0, 0}
+
 -- Card Select Variables
 local isAutoCardSelect = false
 local allCardsList = {
@@ -124,6 +132,12 @@ end
 -- HELPER FUNCTIONS
 -- =============================================
 
+local function cleanNumber(str)
+    if not str then return 0 end
+    local cleanStr = string.gsub(str, "%D", "") 
+    return tonumber(cleanStr) or 0
+end
+
 -- Get how many times a card has been picked (from game data)
 local function getCardGameCount(cardName)
     local modData = workspace:FindFirstChild("ModifierCardsData")
@@ -137,6 +151,144 @@ local function getCardGameCount(cardName)
         end
     end
     return 0
+end
+
+local function getPlayerMoney()
+    local yenData = LocalPlayer:FindFirstChild("GameData") and LocalPlayer.GameData:FindFirstChild("Yen")
+    if yenData then
+        return yenData.Value
+    end
+    return 0
+end
+
+local function getEquippedUnits()
+    local units = {}
+    local unitsFrame = LocalPlayer.PlayerGui:FindFirstChild("Main")
+                        and LocalPlayer.PlayerGui.Main:FindFirstChild("UnitBar")
+                        and LocalPlayer.PlayerGui.Main.UnitBar:FindFirstChild("UnitsFrame")
+                        and LocalPlayer.PlayerGui.Main.UnitBar.UnitsFrame:FindFirstChild("UnitsSlot")
+
+    if unitsFrame then
+        for i = 1, 6 do
+            local slot = unitsFrame:FindFirstChild("unit" .. i)
+            if slot then
+                local unitName = nil
+                local uuid = nil
+                local price = 0
+                
+                -- Tìm StringValue chứa tên Unit và UUID (Value)
+                for _, child in ipairs(slot:GetChildren()) do
+                    if child:IsA("StringValue") and child.Name ~= "Lock" and child.Name ~= "Empty" and child.Name ~= "unit" and child.Name ~= "traits" then
+                        unitName = child.Name
+                        uuid = child.Value
+                        break
+                    end
+                end
+                
+                if unitName and uuid then
+                    for _, descendant in ipairs(slot:GetDescendants()) do
+                        if descendant.Name == "yen" and descendant:IsA("TextLabel") then
+                            price = cleanNumber(descendant.Text)
+                            break
+                        end
+                    end
+                    
+                    table.insert(units, {
+                        slotNum = i,
+                        uuid = uuid,
+                        name = unitName,
+                        price = price
+                    })
+                end
+            end
+        end
+    end
+    return units
+end
+
+local function getPlacedUnitsInfo()
+    local placed = {}
+    local unitServer = workspace:FindFirstChild("Ground") 
+                       and workspace.Ground:FindFirstChild("unitServer") 
+                       and workspace.Ground.unitServer:FindFirstChild(LocalPlayer.Name .. " (UNIT)")
+                       
+    if unitServer then
+        -- Count total placements
+        local maxFolder = unitServer:FindFirstChild("PLACEMENTFOLDER")
+        local globalPlacements = {}
+        
+        if maxFolder then
+            for _, folder in ipairs(maxFolder:GetChildren()) do
+                local uName = string.gsub(folder.Name, " PLACEMENT$", "")
+                local cur = folder:FindFirstChild("placement") and folder.placement.Value or 0
+                local mx = folder:FindFirstChild("maxplacement") and folder.maxplacement.Value or 0
+                globalPlacements[uName] = {current = cur, max = mx}
+            end
+        end
+        
+        -- Get specific units
+        for _, obj in ipairs(unitServer:GetChildren()) do
+            if obj.Name ~= "PLACEMENTFOLDER" then
+                local upgrade = obj:FindFirstChild("Upgrade") and obj.Upgrade.Value or 0
+                local maxUpgrade = obj:FindFirstChild("MaxUpgrade") and obj.MaxUpgrade.Value or 0
+                local priceUpgrade = obj:FindFirstChild("PriceUpgrade") and obj.PriceUpgrade.Value or 0
+                
+                table.insert(placed, {
+                    instanceName = obj.Name,
+                    unitName = string.gsub(obj.Name, " %%d+$", ""),
+                    upgrade = upgrade,
+                    maxUpgrade = maxUpgrade,
+                    priceUpgrade = priceUpgrade,
+                    model = obj
+                })
+            end
+        end
+        
+        return placed, globalPlacements
+    end
+    return placed, {}
+end
+
+local function getValidPlacementCFrame(waypointNum)
+    local waypoints = workspace:FindFirstChild("Main") and workspace.Main:FindFirstChild("Waypoints")
+    if not waypoints then return nil end
+    
+    local targetWP = waypoints:FindFirstChild(tostring(waypointNum))
+    if not targetWP then return nil end
+    
+    -- Thử quét nhiều vị trí ngẫu nhiên xung quanh waypoint
+    for i = 1, 30 do -- Tăng số lần thử để dễ tìm góc hẹp
+        local angle = math.random(0, 360)
+        local rad = math.rad(angle)
+        local distance = math.random(3, placementRadius)
+        local offsetX = math.cos(rad) * distance
+        local offsetZ = math.sin(rad) * distance
+        
+        local wpPos = targetWP.Position
+        local targetPos = Vector3.new(wpPos.X + offsetX, wpPos.Y + 30, wpPos.Z + offsetZ)
+        
+        local rayOrigin = targetPos
+        local rayDirection = Vector3.new(0, -60, 0)
+        local raycastParams = RaycastParams.new()
+        
+        raycastParams.FilterDescendantsInstances = {
+            LocalPlayer.Character,
+            workspace:FindFirstChild("Ground"),
+            workspace:FindFirstChild("Enemies"),
+            workspace:FindFirstChild("Enemy")
+        }
+        raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+        
+        local rayResult = workspace:Raycast(rayOrigin, rayDirection, raycastParams)
+        if rayResult and rayResult.Instance then
+            local hitName = string.lower(rayResult.Instance.Name)
+            if not string.find(hitName, "path") and not string.find(hitName, "road") then
+                return CFrame.new(rayResult.Position.X, rayResult.Position.Y, rayResult.Position.Z)
+            end
+        end
+    end
+    
+    return nil
 end
 
 -- Get the 3 cards currently displayed on the vote screen
@@ -173,12 +325,6 @@ local function getAvailableStages()
     if #list == 0 then return defaultStages end
     table.sort(list)
     return list
-end
-
-local function cleanNumber(str)
-    if not str then return 0 end
-    local cleanStr = string.gsub(str, "%D", "") 
-    return tonumber(cleanStr) or 0
 end
 
 local function getMyMoney()
@@ -396,7 +542,73 @@ for idx, cardName in ipairs(allCardsList) do
 end
 
 -- =============================================
--- TAB 6: SETTINGS
+-- TAB 6: AUTO PLAY SETTING
+-- =============================================
+local AutoTab = Window:CreateTab("Auto Play Setting", 4483362458)
+AutoTab:CreateSection("Auto Play Control")
+AutoTab:CreateToggle({
+   Name = "Enable Auto Play",
+   CurrentValue = false,
+   Flag = "AutoPlay_Toggle",
+   Callback = function(Value)
+      isAutoPlay = Value
+   end,
+})
+local AutoStatusLabel = AutoTab:CreateLabel("Status: Waiting...")
+
+AutoTab:CreateSection("Placement Settings")
+AutoTab:CreateDropdown({
+   Name = "Target Waypoint",
+   Options = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
+   CurrentOption = {"1"},
+   Flag = "Auto_TargetWP",
+   Callback = function(Option)
+      targetWaypoint = tonumber(type(Option) == "table" and Option[1] or Option) or 1
+   end,
+})
+
+local slotOptions = {"None", "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6"}
+for i = 1, 6 do
+    AutoTab:CreateDropdown({
+       Name = "Upgrade Priority " .. i,
+       Options = slotOptions,
+       CurrentOption = {"None"},
+       Flag = "Auto_Priority_" .. i,
+       Callback = function(Option)
+          local sel = type(Option) == "table" and Option[1] or Option
+          if not sel or sel == "None" then
+              upgradePriorities[i] = 0
+          else
+              upgradePriorities[i] = tonumber(string.match(tostring(sel), "%d+")) or 0
+          end
+       end,
+    })
+end
+
+AutoTab:CreateSlider({
+   Name = "Max Placement Radius",
+   Range = {5, 80},
+   Increment = 1,
+   CurrentValue = 15,
+   Flag = "Auto_Radius",
+   Callback = function(Value)
+      placementRadius = Value
+   end,
+})
+
+AutoTab:CreateSlider({
+   Name = "Action Delay (s)",
+   Range = {0.1, 3},
+   Increment = 0.1,
+   CurrentValue = 0.5,
+   Flag = "Auto_Delay",
+   Callback = function(Value)
+      actionDelay = Value
+   end,
+})
+
+-- =============================================
+-- TAB 7: SETTINGS
 -- =============================================
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 SettingsTab:CreateSection("Performance & UI")
@@ -719,6 +931,159 @@ task.spawn(function()
             end
         end
         task.wait(1)
+    end
+end)
+
+-- 9. Auto Play System (Visualizer & Logic)
+local visualZone = Instance.new("Part")
+visualZone.Name = "AutoPlayVisualizer"
+visualZone.Anchored = true
+visualZone.CanCollide = false
+visualZone.CanQuery = false
+visualZone.Shape = Enum.PartType.Cylinder
+visualZone.Material = Enum.Material.ForceField
+visualZone.Color = Color3.fromRGB(0, 255, 0)
+visualZone.Transparency = 0.6
+
+task.spawn(function()
+    while task.wait(0.1) do
+        if isAutoPlay then
+            local waypoints = workspace:FindFirstChild("Main") and workspace.Main:FindFirstChild("Waypoints")
+            local targetWP = waypoints and waypoints:FindFirstChild(tostring(targetWaypoint))
+            if targetWP then
+                visualZone.Parent = workspace
+                visualZone.Size = Vector3.new(0.5, placementRadius * 2, placementRadius * 2)
+                visualZone.CFrame = CFrame.new(targetWP.Position) * CFrame.Angles(0, 0, math.rad(90))
+            else
+                visualZone.Parent = nil
+            end
+        else
+            visualZone.Parent = nil
+        end
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if isAutoPlay then
+            local EventsFolder = ReplicatedStorage:FindFirstChild("PlayMode") 
+                                 and ReplicatedStorage.PlayMode:FindFirstChild("Events")
+            
+            if EventsFolder then
+                local spawnEvent = EventsFolder:FindFirstChild("spawnunit")
+                local manageEvent = EventsFolder:FindFirstChild("ManageUnits")
+                
+                if spawnEvent and manageEvent then
+                    local money = getMyMoney()
+                    local placedUnits, limits = getPlacedUnitsInfo()
+                    local equippedUnits = getEquippedUnits()
+                    local actionDone = false
+                    
+                    -- PHASE 1: PLACEMENT (Bắt buộc đặt max limit tất cả trước)
+                    local allMaxed = true
+                    local targetPlace = nil
+
+                    for _, eqUnit in ipairs(equippedUnits) do
+                        local curP = 0
+                        local maxP = 1 -- Fallback nếu chưa có folder
+                        if limits[eqUnit.name] then
+                            curP = limits[eqUnit.name].current
+                            maxP = limits[eqUnit.name].max
+                        end
+                        
+                        if curP < maxP then
+                            allMaxed = false -- Còn unit chưa đặt max
+                            if money >= eqUnit.price and not targetPlace then
+                                targetPlace = eqUnit
+                            end
+                        end
+                    end
+                    
+                    if not allMaxed then
+                        actionDone = true -- Khóa Upgrade hoàn toàn cho tới khi allMaxed = true
+                        if targetPlace then
+                            local placeCFrame = getValidPlacementCFrame(targetWaypoint)
+                            if placeCFrame then
+                                AutoStatusLabel:Set("Status: Placing " .. targetPlace.name)
+                                local args = {
+                                    [1] = {
+                                        [1] = targetPlace.name,
+                                        [2] = placeCFrame,
+                                        [3] = 0
+                                    },
+                                    [2] = targetPlace.uuid
+                                }
+                                
+                                pcall(function() spawnEvent:InvokeServer(unpack(args)) end)
+                                task.wait(actionDelay)
+                            else
+                                AutoStatusLabel:Set("Status: Finding Raycast Position...")
+                            end
+                        else
+                            AutoStatusLabel:Set("Status: Waiting Money To Place...")
+                        end
+                    end
+                    
+                    -- PHASE 2: UPGRADE
+                    if not actionDone then
+                        local upgradeableUnits = {}
+                        
+                        for _, unit in ipairs(placedUnits) do
+                            if unit.upgrade < unit.maxUpgrade and money >= unit.priceUpgrade then
+                                table.insert(upgradeableUnits, unit)
+                            end
+                        end
+                        
+                        if #upgradeableUnits > 0 then
+                            local targetUpgrade = nil
+                            
+                            for pIndex = 1, 6 do
+                                local pSlot = upgradePriorities[pIndex]
+                                if pSlot > 0 then
+                                    local targetName = nil
+                                    for _, eq in ipairs(equippedUnits) do
+                                        if eq.slotNum == pSlot then
+                                            targetName = eq.name
+                                            break
+                                        end
+                                    end
+                                    
+                                    if targetName then
+                                        for _, u in ipairs(upgradeableUnits) do
+                                            if string.find(string.lower(u.instanceName), string.lower(targetName), 1, true) then
+                                                targetUpgrade = u
+                                                break
+                                            end
+                                        end
+                                    end
+                                end
+                                if targetUpgrade then break end
+                            end
+                            
+                            if not targetUpgrade then
+                                targetUpgrade = upgradeableUnits[1]
+                            end
+                            
+                            if targetUpgrade then
+                                AutoStatusLabel:Set("Status: Upgrading " .. targetUpgrade.instanceName)
+                                pcall(function()
+                                    manageEvent:InvokeServer("Upgrade", targetUpgrade.instanceName)
+                                end)
+                                actionDone = true
+                                task.wait(upgradeDelay)
+                            end
+                        end
+                    end
+                    
+                    if not actionDone then
+                        AutoStatusLabel:Set("Status: Idle")
+                    end
+                end
+            else
+                AutoStatusLabel:Set("Status: Waiting for Match...")
+            end
+        end
+        task.wait(0.2)
     end
 end)
 
