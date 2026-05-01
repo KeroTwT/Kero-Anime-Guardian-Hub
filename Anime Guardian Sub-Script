@@ -78,6 +78,7 @@ local placementRadius = 15
 local actionDelay = 0.5
 local upgradeDelay = 0.5
 local upgradePriorities = {0, 0, 0, 0, 0, 0}
+local isAutoMiddleMap = false
 
 -- Card Select Variables
 local isAutoCardSelect = false
@@ -249,11 +250,30 @@ local function getPlacedUnitsInfo()
     return placed, {}
 end
 
-local function getValidPlacementCFrame(waypointNum)
-    local waypoints = workspace:FindFirstChild("Main") and workspace.Main:FindFirstChild("Waypoints")
-    if not waypoints then return nil end
+local function getTargetWaypointPart(waypointNum)
+    local main = workspace:FindFirstChild("Main")
+    if not main then return nil end
     
-    local targetWP = waypoints:FindFirstChild(tostring(waypointNum))
+    if isAutoMiddleMap then
+        local wp2 = main:FindFirstChild("Waypoints 2")
+        if wp2 then
+            local wp19 = wp2:FindFirstChild("19")
+            if wp19 then return wp19 end
+        end
+    end
+    
+    local wpStr = tostring(waypointNum)
+    for _, child in ipairs(main:GetChildren()) do
+        if string.match(child.Name, "^Waypoints") then
+            local wp = child:FindFirstChild(wpStr)
+            if wp then return wp end
+        end
+    end
+    return nil
+end
+
+local function getValidPlacementCFrame(waypointNum)
+    local targetWP = getTargetWaypointPart(waypointNum)
     if not targetWP then return nil end
     
     -- Thử quét nhiều vị trí ngẫu nhiên xung quanh waypoint
@@ -557,9 +577,12 @@ AutoTab:CreateToggle({
 local AutoStatusLabel = AutoTab:CreateLabel("Status: Waiting...")
 
 AutoTab:CreateSection("Placement Settings")
+local wpOptions = {}
+for i = 1, 60 do table.insert(wpOptions, tostring(i)) end
+
 AutoTab:CreateDropdown({
    Name = "Target Waypoint",
-   Options = {"1", "2", "3", "4", "5", "6", "7", "8", "9", "10", "11", "12"},
+   Options = wpOptions,
    CurrentOption = {"1"},
    Flag = "Auto_TargetWP",
    Callback = function(Option)
@@ -604,6 +627,16 @@ AutoTab:CreateSlider({
    Flag = "Auto_Delay",
    Callback = function(Value)
       actionDelay = Value
+   end,
+})
+
+AutoTab:CreateSection("For Guild War")
+AutoTab:CreateToggle({
+   Name = "Auto Place At The Middle Map",
+   CurrentValue = false,
+   Flag = "Auto_MiddleMap",
+   Callback = function(Value)
+      isAutoMiddleMap = Value
    end,
 })
 
@@ -948,8 +981,7 @@ visualZone.Transparency = 0.6
 task.spawn(function()
     while task.wait(0.1) do
         if isAutoPlay then
-            local waypoints = workspace:FindFirstChild("Main") and workspace.Main:FindFirstChild("Waypoints")
-            local targetWP = waypoints and waypoints:FindFirstChild(tostring(targetWaypoint))
+            local targetWP = getTargetWaypointPart(targetWaypoint)
             if targetWP then
                 visualZone.Parent = workspace
                 visualZone.Size = Vector3.new(0.5, placementRadius * 2, placementRadius * 2)
