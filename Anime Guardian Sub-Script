@@ -1023,6 +1023,10 @@ task.spawn(function()
                             maxP = limits[eqUnit.name].max
                         end
                         
+                        if string.find(eqUnit.name, "Subaru %(Lust%)") and maxP > 4 then
+                            maxP = 4
+                        end
+                        
                         if curP < maxP then
                             allMaxed = false -- Còn unit chưa đặt max
                             if money >= eqUnit.price and not targetPlace then
