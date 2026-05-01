@@ -695,7 +695,6 @@ end)
 -- 2. Auto Host Ancient (UPDATED LOGIC)
 task.spawn(function()
     while true do
-        -- A. Auto Max Floor (Host -> Wait -> Start)
         if isAutoAncientMax then
             local CreatePortal = ReplicatedStorage:FindFirstChild("PlayMode") 
                                  and ReplicatedStorage.PlayMode:FindFirstChild("Events") 
@@ -705,7 +704,6 @@ task.spawn(function()
                 pcall(function()
                     local maxF = getAncientMaxFloor()
                     
-                    -- STEP 1: HOST (Dùng code cũ như bạn yêu cầu)
                     local hostArgs = {
                         [1] = "Tower Adventures",
                         [2] = {
@@ -718,12 +716,11 @@ task.spawn(function()
                     
                     task.wait(1.5 + hostDelay)
                     
-                    -- STEP 2: START (Dùng remote "Create" mới, thay thế cho RoomFunction:Start)
                     local startArgs = {
                         [1] = "Create",
                         [2] = {
                             [1] = "The Lost Ancient World",
-                            [2] = tostring(maxF), -- Tự động điền tầng cao nhất
+                            [2] = tostring(maxF),
                             [3] = "Tower Adventures"
                         }
                     }
@@ -732,7 +729,6 @@ task.spawn(function()
                 task.wait(3)
             end
             
-        -- B. Custom Floor (Logic Riêng)
         elseif isAutoAncientCustom then
             local CreatePortal = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events") and ReplicatedStorage.PlayMode.Events:FindFirstChild("CreatingPortal")
             local RoomFunction = ReplicatedStorage:FindFirstChild("Remote") and ReplicatedStorage.Remote:FindFirstChild("RoomFunction")
@@ -923,11 +919,9 @@ task.spawn(function()
     local CardVote = ReplicatedStorage:WaitForChild("PlayMode"):WaitForChild("Events"):WaitForChild("CardVote")
     while true do
         if isAutoCardSelect then
-            -- Step 1: Read the 3 cards currently displayed on screen
             local displayed = getDisplayedCards()
             
             if #displayed > 0 then
-                -- Step 2: Among displayed cards, find best priority with count < limit
                 local bestCard = nil
                 local bestPriority = math.huge
                 
@@ -935,7 +929,6 @@ task.spawn(function()
                     local cfg = cardConfig[cardName]
                     if cfg and cfg.priority > 0 then
                         local currentCount = getCardGameCount(cardName)
-                        -- Check if limit is set (>0) and count hasn't exceeded it
                         local withinLimit = (cfg.limit > 0) and (currentCount < cfg.limit)
                         if withinLimit and cfg.priority > 0 and cfg.priority < bestPriority then
                             bestCard = cardName
@@ -944,7 +937,6 @@ task.spawn(function()
                     end
                 end
                 
-                -- Step 3: Vote for the best card
                 if bestCard then
                     local currentCount = getCardGameCount(bestCard)
                     local cfg = cardConfig[bestCard]
@@ -958,7 +950,6 @@ task.spawn(function()
                         CardStatusLabel:Set("Error: " .. tostring(err))
                     end
                 else
-                    -- No valid card among displayed ones
                     CardStatusLabel:Set("No priority match in: " .. table.concat(displayed, ", "))
                 end
             end
@@ -1011,13 +1002,12 @@ task.spawn(function()
                     local equippedUnits = getEquippedUnits()
                     local actionDone = false
                     
-                    -- PHASE 1: PLACEMENT (Bắt buộc đặt max limit tất cả trước)
                     local allMaxed = true
                     local targetPlace = nil
 
                     for _, eqUnit in ipairs(equippedUnits) do
                         local curP = 0
-                        local maxP = 1 -- Fallback nếu chưa có folder
+                        local maxP = 1
                         if limits[eqUnit.name] then
                             curP = limits[eqUnit.name].current
                             maxP = limits[eqUnit.name].max
@@ -1028,7 +1018,7 @@ task.spawn(function()
                         end
                         
                         if curP < maxP then
-                            allMaxed = false -- Còn unit chưa đặt max
+                            allMaxed = false
                             if money >= eqUnit.price and not targetPlace then
                                 targetPlace = eqUnit
                             end
@@ -1036,7 +1026,7 @@ task.spawn(function()
                     end
                     
                     if not allMaxed then
-                        actionDone = true -- Khóa Upgrade hoàn toàn cho tới khi allMaxed = true
+                        actionDone = true
                         if targetPlace then
                             local placeCFrame = getValidPlacementCFrame(targetWaypoint)
                             if placeCFrame then
@@ -1060,7 +1050,6 @@ task.spawn(function()
                         end
                     end
                     
-                    -- PHASE 2: UPGRADE
                     if not actionDone then
                         local upgradeableUnits = {}
                         
