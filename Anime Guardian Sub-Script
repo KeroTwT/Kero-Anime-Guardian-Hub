@@ -121,18 +121,12 @@ local allCardsList = {
     "Damage mirror back to enemies 100%",
     "Fast Army",
     "Frequent Army",
-    "Golden Tribute",
     "Grant 2,500 Monarch coin but +25% SPA",
     "More Hits",
     "No limit",
     "Player Speed",
-    "Power Surge",
     "Regen Base Health",
-    "Regeneration",
-    "Saiya",
     "Skill cooldown -1%",
-    "Strong Army",
-    "Time Snare",
     "Upon killing boss will gain +1 Guild Point",
     "Yen Boost",
 }
@@ -152,7 +146,6 @@ local function cleanNumber(str)
     return tonumber(cleanStr) or 0
 end
 
--- Get how many times a card has been picked (from game data)
 local function getCardGameCount(cardName)
     local modData = workspace:FindFirstChild("ModifierCardsData")
     if modData then
@@ -289,8 +282,7 @@ local function getValidPlacementCFrame(waypointNum)
     local targetWP = getTargetWaypointPart(waypointNum)
     if not targetWP then return nil end
     
-    -- Thử quét nhiều vị trí ngẫu nhiên xung quanh waypoint
-    for i = 1, 30 do -- Tăng số lần thử để dễ tìm góc hẹp
+    for i = 1, 30 do
         local angle = math.random(0, 360)
         local rad = math.rad(angle)
         local distance = math.random(3, placementRadius)
@@ -324,9 +316,6 @@ local function getValidPlacementCFrame(waypointNum)
     return nil
 end
 
--- Get the 3 cards currently displayed on the vote screen
--- Path: PlayerGui.CardVote.Frame.Inset.Sctroll[cardName]
--- All cards always exist, so we check Visible to find which 3 are active
 local function getDisplayedCards()
     local found = {}
     local cardVoteGui = LocalPlayer.PlayerGui:FindFirstChild("CardVote")
@@ -339,7 +328,6 @@ local function getDisplayedCards()
     if not scroll then return found end
     
     for _, child in ipairs(scroll:GetChildren()) do
-        -- Only check actual card frames (skip UIListLayout, etc.)
         if child:IsA("GuiObject") and child.Visible and cardConfig[child.Name] then
             table.insert(found, child.Name)
         end
@@ -1042,8 +1030,6 @@ task.spawn(function()
                             local maxUpgObj = item:FindFirstChild("max_upgrade")
                             local upgObj = item:FindFirstChild("upgrade")
                             
-                            -- Assuming there is a current 'upgrade' value to check against 'max_upgrade'. 
-                            -- If not, checking priceObj.Value vs money handles the ability to buy.
                             local maxed = false
                             if maxUpgObj and upgObj then
                                 if upgObj.Value >= maxUpgObj.Value then maxed = true end
