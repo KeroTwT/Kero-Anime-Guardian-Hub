@@ -541,7 +541,6 @@ CardTab:CreateToggle({
 })
 local CardStatusLabel = CardTab:CreateLabel("Status: Idle")
 
--- Generate UI for each card individually
 for idx, cardName in ipairs(allCardsList) do
     CardTab:CreateSection(cardName)
     CardTab:CreateInput({
