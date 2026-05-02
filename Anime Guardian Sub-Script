@@ -77,6 +77,7 @@ local ssPriorities = {"None", "None", "None"}
 local stageShopItems = {"None", "Unlock farm units", "Unlock buff units", "Summon Kamish"}
 
 local isAutoPersonalUpgrade = false
+local targetPUWave = 0
 local puPriorities = {"None", "None", "None", "None", "None", "None", "None", "None"}
 local personalUpgradeItems = {
     "None",
@@ -385,11 +386,20 @@ local function getModifierPrice(modName)
 end
 
 local function getCurrentWave()
-    if LocalPlayer.PlayerGui:FindFirstChild("GUI") 
-       and LocalPlayer.PlayerGui.GUI:FindFirstChild("BaseFrame") 
-       and LocalPlayer.PlayerGui.GUI.BaseFrame:FindFirstChild("Wave") then
-        local waveText = LocalPlayer.PlayerGui.GUI.BaseFrame.Wave.Text
-        return cleanNumber(waveText)
+    if LocalPlayer.PlayerGui:FindFirstChild("GUI") then
+        local gui = LocalPlayer.PlayerGui.GUI
+        if gui:FindFirstChild("BaseFrame") and gui.BaseFrame:FindFirstChild("Wave") then
+            -- Normal stage wave format usually "1" or similar
+            return cleanNumber(gui.BaseFrame.Wave.Text)
+        elseif gui:FindFirstChild("castle_kingdom_monarch_health") and gui.castle_kingdom_monarch_health:FindFirstChild("Wave") then
+            -- Guild war format: "Wave: 1 | ..."
+            local text = gui.castle_kingdom_monarch_health.Wave.Text
+            local waveMatch = string.match(text, "Wave:%s*(%d+)")
+            if waveMatch then
+                return tonumber(waveMatch) or 0
+            end
+            return cleanNumber(text)
+        end
     end
     return 0
 end
@@ -580,6 +590,7 @@ end
 
 GuildWarTab:CreateSection("Personal Upgrade")
 GuildWarTab:CreateToggle({Name="Auto Personal Upgrade", CurrentValue=false, Flag="GW_AutoPersonalUpg", Callback=function(V) isAutoPersonalUpgrade=V end})
+GuildWarTab:CreateInput({Name="Auto Buy At Wave", PlaceholderText="0", Flag="GW_PUWave", Callback=function(T) targetPUWave=tonumber(T) or 0 end})
 for i = 1, 8 do
     GuildWarTab:CreateDropdown({
         Name = "Priority " .. i,
@@ -991,7 +1002,7 @@ end)
 task.spawn(function()
     while true do
         if isAutoBuyStageShop then
-            local myMoney = getMyMoney()
+            local myMoney = getPlayerMoney()
             local ModifierShop = ReplicatedStorage:FindFirstChild("ModifierShop")
             local modData = workspace:FindFirstChild("ModifierCardsData")
             
@@ -1004,9 +1015,8 @@ task.spawn(function()
                             if priceObj and myMoney >= priceObj.Value then
                                 local ok = pcall(function() 
                                     ModifierShop:InvokeServer(itemName) 
-                                    myMoney = myMoney - priceObj.Value
                                 end)
-                                task.wait(0.2)
+                                task.wait(0.5)
                             end
                         end
                     end
@@ -1014,32 +1024,34 @@ task.spawn(function()
             end
         end
         if isAutoPersonalUpgrade then
-            local myMoney = getMyMoney()
-            local puRemote = ReplicatedStorage:FindFirstChild("PlayMode") 
-                             and ReplicatedStorage.PlayMode:FindFirstChild("Events") 
-                             and ReplicatedStorage.PlayMode.Events:FindFirstChild("personal_upgrade")
-            local puFolder = workspace:FindFirstChild("personal_upgrades")
-            
-            if puRemote and puFolder then
-                for _, itemName in ipairs(puPriorities) do
-                    if itemName and itemName ~= "None" then
-                        local item = puFolder:FindFirstChild(itemName)
-                        if item then
-                            local priceObj = item:FindFirstChild("price")
-                            local maxUpgObj = item:FindFirstChild("max_upgrade")
-                            local upgObj = item:FindFirstChild("upgrade")
-                            
-                            local maxed = false
-                            if maxUpgObj and upgObj then
-                                if upgObj.Value >= maxUpgObj.Value then maxed = true end
-                            end
-                            
-                            if not maxed and priceObj and myMoney >= priceObj.Value then
-                                local ok = pcall(function() 
-                                    puRemote:FireServer(itemName) 
-                                    myMoney = myMoney - priceObj.Value
-                                end)
-                                task.wait(0.2)
+            local currentWave = getCurrentWave()
+            if targetPUWave == 0 or currentWave >= targetPUWave then
+                local myMoney = getPlayerMoney()
+                local puRemote = ReplicatedStorage:FindFirstChild("PlayMode") 
+                                 and ReplicatedStorage.PlayMode:FindFirstChild("Events") 
+                                 and ReplicatedStorage.PlayMode.Events:FindFirstChild("personal_upgrade")
+                local puFolder = workspace:FindFirstChild("personal_upgrades")
+                
+                if puRemote and puFolder then
+                    for _, itemName in ipairs(puPriorities) do
+                        if itemName and itemName ~= "None" then
+                            local item = puFolder:FindFirstChild(itemName)
+                            if item then
+                                local priceObj = item:FindFirstChild("price")
+                                local maxUpgObj = item:FindFirstChild("max_upgrade")
+                                local upgObj = item:FindFirstChild("upgrade")
+                                
+                                local maxed = false
+                                if maxUpgObj and upgObj then
+                                    if tonumber(upgObj.Value) >= tonumber(maxUpgObj.Value) then maxed = true end
+                                end
+                                
+                                if not maxed and priceObj and myMoney >= priceObj.Value then
+                                    local ok = pcall(function() 
+                                        puRemote:FireServer(itemName) 
+                                    end)
+                                    task.wait(0.5)
+                                end
                             end
                         end
                     end
