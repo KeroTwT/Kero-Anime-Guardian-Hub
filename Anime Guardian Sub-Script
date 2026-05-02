@@ -75,6 +75,7 @@ local modifierList = {"None", "Golden Tribute", "Power Surge", "Saiya", "Time Sn
 local isAutoBuyStageShop = false
 local ssPriorities = {"None", "None", "None"}
 local stageShopItems = {"None", "Unlock farm units", "Unlock buff units", "Summon Kamish"}
+local isAutoCollectPhantomSkull = false
 
 local isAutoPersonalUpgrade = false
 local targetPUWave = 0
@@ -130,6 +131,7 @@ local allCardsList = {
     "Skill cooldown -1%",
     "Upon killing boss will gain +1 Guild Point",
     "Yen Boost",
+    "+1 Max Placement"
 }
 -- Per-card config: { [cardName] = {priority=0, limit=0} }
 local cardConfig = {}
@@ -575,6 +577,9 @@ end
 -- TAB 5.5: GUILD WAR MANAGER
 -- =============================================
 local GuildWarTab = Window:CreateTab("Guild War", 4483362458)
+
+GuildWarTab:CreateSection("Phantom Skull")
+GuildWarTab:CreateToggle({Name="Auto Collect Phantom Skull", CurrentValue=false, Flag="GW_AutoPhantomSkull", Callback=function(V) isAutoCollectPhantomSkull=V end})
 
 GuildWarTab:CreateSection("Stage Shop")
 GuildWarTab:CreateToggle({Name="Auto Stage Shop", CurrentValue=false, Flag="GW_AutoStageShop", Callback=function(V) isAutoBuyStageShop=V end})
@@ -1213,6 +1218,52 @@ task.spawn(function()
             end
         end
         task.wait(0.2)
+    end
+end)
+
+-- 10. Auto Collect Phantom Skull
+task.spawn(function()
+    local VirtualInputManager = game:GetService("VirtualInputManager")
+    while true do
+        if isAutoCollectPhantomSkull then
+            pcall(function()
+                local spawnable = workspace:FindFirstChild("Spawnable")
+                if spawnable then
+                    -- Lặp qua các part/spawn trong folder Spawnable
+                    for _, sp in ipairs(spawnable:GetChildren()) do
+                        local active = sp:FindFirstChild("Active")
+                        if active and active:IsA("BoolValue") and active.Value == true then
+                            local char = LocalPlayer.Character
+                            local rootPart = char and char:FindFirstChild("HumanoidRootPart")
+                            if rootPart then
+                                -- Dịch chuyển tới và đợi 5 giây để game nhận diện
+                                rootPart.CFrame = sp.CFrame
+                                task.wait(3)
+                                
+                                -- Thu thập liên tục cho đến khi Value thành false
+                                while isAutoCollectPhantomSkull and active.Value == true and LocalPlayer.Character do
+                                    rootPart.CFrame = sp.CFrame
+                                    task.wait(0.2)
+                                    
+                                    -- Nếu là ProximityPrompt thì gọi thẳng fireproximityprompt
+                                    local prompt = sp:FindFirstChildWhichIsA("ProximityPrompt", true)
+                                    if prompt then
+                                        fireproximityprompt(prompt)
+                                    else
+                                        -- Nếu là GUI bấm E thông thường thì mô phỏng phím E
+                                        VirtualInputManager:SendKeyEvent(true, Enum.KeyCode.E, false, game)
+                                        task.wait(0.1)
+                                        VirtualInputManager:SendKeyEvent(false, Enum.KeyCode.E, false, game)
+                                    end
+                                    task.wait(0.5)
+                                end
+                            end
+                        end
+                    end
+                end
+            end)
+        end
+        task.wait(0.5)
     end
 end)
 
