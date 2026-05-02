@@ -71,6 +71,24 @@ local prioritySlot3 = "Saiya"
 local prioritySlot4 = "Time Snare"
 local modifierList = {"None", "Golden Tribute", "Power Surge", "Saiya", "Time Snare"}
 
+-- Guild War Variables
+local isAutoBuyStageShop = false
+local ssPriorities = {"None", "None", "None"}
+local stageShopItems = {"None", "Unlock farm units", "Unlock buff units", "Summon Kamish"}
+
+local isAutoPersonalUpgrade = false
+local puPriorities = {"None", "None", "None", "None", "None", "None", "None", "None"}
+local personalUpgradeItems = {
+    "None",
+    "+1 Base Stock Health (Max and Current)",
+    "+1 Guild Points Drop From Defeat Boss Enemy",
+    "+1 Max Placement",
+    "+1 Multiple Hits",
+    "+10% Monarch Coins Drop From Defeat Enemy",
+    "+10% Yen Per Wave",
+    "-5% Skill Cooldown"
+}
+
 -- Auto Play Variables
 local isAutoPlay = false
 local targetWaypoint = 1
@@ -84,8 +102,6 @@ local isAutoMiddleMap = false
 local isAutoCardSelect = false
 local allCardsList = {
     "+1 Base Health",
-    "+1 Max Placement",
-    "+1 Multiple Hit",
     "+1% Max Health Damage",
     "+10 Multi Hit but +100% SPA",
     "+100% Monarch Coins bonus but enemy gain x2.5...",
@@ -116,10 +132,7 @@ local allCardsList = {
     "Saiya",
     "Skill cooldown -1%",
     "Strong Army",
-    "Summon Kamish",
     "Time Snare",
-    "Unlock buff units",
-    "Unlock farm units",
     "Upon killing boss will gain +1 Guild Point",
     "Yen Boost",
 }
@@ -562,6 +575,36 @@ for idx, cardName in ipairs(allCardsList) do
 end
 
 -- =============================================
+-- TAB 5.5: GUILD WAR MANAGER
+-- =============================================
+local GuildWarTab = Window:CreateTab("Guild War", 4483362458)
+
+GuildWarTab:CreateSection("Stage Shop")
+GuildWarTab:CreateToggle({Name="Auto Stage Shop", CurrentValue=false, Flag="GW_AutoStageShop", Callback=function(V) isAutoBuyStageShop=V end})
+for i = 1, 3 do
+    GuildWarTab:CreateDropdown({
+        Name = "Priority " .. i,
+        Options = stageShopItems,
+        CurrentOption = {"None"},
+        Flag = "GW_SS_P" .. i,
+        Callback = function(Option) ssPriorities[i] = Option[1] end,
+    })
+end
+
+GuildWarTab:CreateSection("Personal Upgrade")
+GuildWarTab:CreateToggle({Name="Auto Personal Upgrade", CurrentValue=false, Flag="GW_AutoPersonalUpg", Callback=function(V) isAutoPersonalUpgrade=V end})
+for i = 1, 8 do
+    GuildWarTab:CreateDropdown({
+        Name = "Priority " .. i,
+        Options = personalUpgradeItems,
+        CurrentOption = {"None"},
+        Flag = "GW_PU_P" .. i,
+        Callback = function(Option) puPriorities[i] = Option[1] end,
+    })
+end
+
+
+-- =============================================
 -- TAB 6: AUTO PLAY SETTING
 -- =============================================
 local AutoTab = Window:CreateTab("Auto Play Setting", 4483362458)
@@ -571,7 +614,7 @@ AutoTab:CreateToggle({
    CurrentValue = false,
    Flag = "AutoPlay_Toggle",
    Callback = function(Value)
-      isAutoPlay = Value
+      isAutoPlay = Value    
    end,
 })
 local AutoStatusLabel = AutoTab:CreateLabel("Status: Waiting...")
@@ -955,6 +998,70 @@ task.spawn(function()
             end
         end
         task.wait(1)
+    end
+end)
+
+task.spawn(function()
+    while true do
+        if isAutoBuyStageShop then
+            local myMoney = getMyMoney()
+            local ModifierShop = ReplicatedStorage:FindFirstChild("ModifierShop")
+            local modData = workspace:FindFirstChild("ModifierCardsData")
+            
+            if ModifierShop and modData then
+                for _, itemName in ipairs(ssPriorities) do
+                    if itemName and itemName ~= "None" then
+                        local item = modData:FindFirstChild(itemName)
+                        if item then
+                            local priceObj = item:FindFirstChild("DefaultPrice")
+                            if priceObj and myMoney >= priceObj.Value then
+                                local ok = pcall(function() 
+                                    ModifierShop:InvokeServer(itemName) 
+                                    myMoney = myMoney - priceObj.Value
+                                end)
+                                task.wait(0.2)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        if isAutoPersonalUpgrade then
+            local myMoney = getMyMoney()
+            local puRemote = ReplicatedStorage:FindFirstChild("PlayMode") 
+                             and ReplicatedStorage.PlayMode:FindFirstChild("Events") 
+                             and ReplicatedStorage.PlayMode.Events:FindFirstChild("personal_upgrade")
+            local puFolder = workspace:FindFirstChild("personal_upgrades")
+            
+            if puRemote and puFolder then
+                for _, itemName in ipairs(puPriorities) do
+                    if itemName and itemName ~= "None" then
+                        local item = puFolder:FindFirstChild(itemName)
+                        if item then
+                            local priceObj = item:FindFirstChild("price")
+                            local maxUpgObj = item:FindFirstChild("max_upgrade")
+                            local upgObj = item:FindFirstChild("upgrade")
+                            
+                            -- Assuming there is a current 'upgrade' value to check against 'max_upgrade'. 
+                            -- If not, checking priceObj.Value vs money handles the ability to buy.
+                            local maxed = false
+                            if maxUpgObj and upgObj then
+                                if upgObj.Value >= maxUpgObj.Value then maxed = true end
+                            end
+                            
+                            if not maxed and priceObj and myMoney >= priceObj.Value then
+                                local ok = pcall(function() 
+                                    puRemote:FireServer(itemName) 
+                                    myMoney = myMoney - priceObj.Value
+                                end)
+                                task.wait(0.2)
+                            end
+                        end
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
     end
 end)
 
