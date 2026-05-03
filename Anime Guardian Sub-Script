@@ -700,6 +700,39 @@ SettingsTab:CreateToggle({
       if Value then Rayfield:Notify({Title="AFK Mode", Content="3D Rendering Disabled", Duration=3}) else Rayfield:Notify({Title="Active Mode", Content="3D Rendering Enabled", Duration=3}) end
    end,
 })
+
+local isFPSBoost = false
+SettingsTab:CreateToggle({
+   Name = "FPS Boost",
+   CurrentValue = false,
+   Flag = "Set_FPSBoost",
+   Callback = function(Value)
+      isFPSBoost = Value
+      if Value then
+          pcall(function()
+              settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+              game:GetService("Lighting").GlobalShadows = false
+              game:GetService("Lighting").FogEnd = 9e9
+              game:GetService("Lighting").ShadowSoftness = 0
+              if sethiddenproperty then
+                  sethiddenproperty(game:GetService("Lighting"), "Technology", Enum.Technology.Compatibility)
+              end
+              for _, v in pairs(game:GetDescendants()) do
+                  if v:IsA("Part") or v:IsA("UnionOperation") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") or v:IsA("MeshPart") then
+                      v.Material = Enum.Material.Plastic
+                      v.Reflectance = 0
+                  elseif v:IsA("Decal") or v:IsA("Texture") then
+                      v.Transparency = 1
+                  elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                      v.Lifetime = NumberRange.new(0)
+                  end
+              end
+          end)
+          Rayfield:Notify({Title="FPS Boost", Content="Optimizations Applied!", Duration=3})
+      end
+   end,
+})
+
 SettingsTab:CreateToggle({
    Name = "Hide Game UI",
    CurrentValue = false,
@@ -1259,6 +1292,33 @@ task.spawn(function()
             end)
         end
         task.wait(0.5)
+    end
+end)
+
+-- 11. FPS Boost Loops
+task.spawn(function()
+    while true do
+        if isFPSBoost then
+            pcall(function()
+                if workspace:FindFirstChild("Terrain") then
+                    workspace.Terrain:Clear()
+                end
+                local monarch = workspace:FindFirstChild("Main") and workspace.Main:FindFirstChild("Castle Kingdom Monarch")
+                if monarch and monarch:FindFirstChild("Lighting") then
+                    monarch.Lighting:ClearAllChildren()
+                end
+                
+                if workspace:FindFirstChild("Ground") then
+                    if workspace.Ground:FindFirstChild("enemyClient") then
+                        workspace.Ground.enemyClient:ClearAllChildren()
+                    end
+                    if workspace.Ground:FindFirstChild("enemyServer") then
+                        workspace.Ground.enemyServer:ClearAllChildren()
+                    end
+                end
+            end)
+        end
+        task.wait(1)
     end
 end)
 
