@@ -97,6 +97,7 @@ local targetWaypoint = 1
 local placementRadius = 15
 local actionDelay = 0.5
 local upgradeDelay = 0.5
+local placePriorities = {0, 0, 0, 0, 0, 0}
 local upgradePriorities = {0, 0, 0, 0, 0, 0}
 local isAutoMiddleMap = false
 
@@ -640,6 +641,23 @@ AutoTab:CreateDropdown({
 local slotOptions = {"None", "Slot 1", "Slot 2", "Slot 3", "Slot 4", "Slot 5", "Slot 6"}
 for i = 1, 6 do
     AutoTab:CreateDropdown({
+       Name = "Place Priority " .. i,
+       Options = slotOptions,
+       CurrentOption = {"None"},
+       Flag = "Auto_PlacePriority_" .. i,
+       Callback = function(Option)
+          local sel = type(Option) == "table" and Option[1] or Option
+          if not sel or sel == "None" then
+              placePriorities[i] = 0
+          else
+              placePriorities[i] = tonumber(string.match(tostring(sel), "%d+")) or 0
+          end
+       end,
+    })
+end
+
+for i = 1, 6 do
+    AutoTab:CreateDropdown({
        Name = "Upgrade Priority " .. i,
        Options = slotOptions,
        CurrentOption = {"None"},
@@ -692,6 +710,67 @@ AutoTab:CreateToggle({
 -- =============================================
 local SettingsTab = Window:CreateTab("Settings", 4483362458)
 SettingsTab:CreateSection("Performance & UI")
+
+local descConn
+local isFPSBoost = false
+
+SettingsTab:CreateToggle({
+   Name = "FPS Boost",
+   CurrentValue = false,
+   Flag = "Set_MegaFPS",
+   Callback = function(Value)
+      isFPSBoost = Value
+      if Value then
+          pcall(function()
+              settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
+              local Lighting = game:GetService("Lighting")
+              Lighting.GlobalShadows = false
+              Lighting.FogEnd = 1e10
+              Lighting.EnvironmentDiffuseScale = 0
+              Lighting.EnvironmentSpecularScale = 0
+              Lighting.ClockTime = 14
+              
+              if sethiddenproperty then
+                  pcall(function() sethiddenproperty(Lighting, "Technology", Enum.Technology.Compatibility) end)
+              end
+              
+              for _, v in ipairs(Lighting:GetDescendants()) do
+                  if v:IsA("PostEffect") or v:IsA("Atmosphere") or v:IsA("Sky") then
+                      v:Destroy()
+                  end
+              end
+
+              local function processObj(v)
+                  if v:IsA("BasePart") then
+                      v.Material = Enum.Material.SmoothPlastic
+                      v.Reflectance = 0
+                  elseif v:IsA("Decal") or v:IsA("Texture") then
+                      v.Transparency = 1
+                  elseif v:IsA("ParticleEmitter") or v:IsA("Fire") or v:IsA("Smoke") or v:IsA("Sparkles") or v:IsA("Beam") or v:IsA("Trail") then
+                      v.Enabled = false
+                  end
+              end
+
+              for _, v in ipairs(workspace:GetDescendants()) do
+                  pcall(processObj, v)
+              end
+
+              if not descConn then
+                  descConn = workspace.DescendantAdded:Connect(function(v)
+                      task.defer(function() pcall(processObj, v) end)
+                  end)
+              end
+          end)
+          Rayfield:Notify({Title="FPS Boost", Content="All optimizations & Anti-Lag applied!", Duration=3})
+      else
+          if descConn then
+              descConn:Disconnect()
+              descConn = nil
+          end
+      end
+   end,
+})
+
 SettingsTab:CreateToggle({
    Name = "White Screen (AFK Mode)",
    CurrentValue = false,
@@ -699,38 +778,6 @@ SettingsTab:CreateToggle({
    Callback = function(Value)
       RunService:Set3dRenderingEnabled(not Value)
       if Value then Rayfield:Notify({Title="AFK Mode", Content="3D Rendering Disabled", Duration=3}) else Rayfield:Notify({Title="Active Mode", Content="3D Rendering Enabled", Duration=3}) end
-   end,
-})
-
-local isFPSBoost = false
-SettingsTab:CreateToggle({
-   Name = "FPS Boost",
-   CurrentValue = false,
-   Flag = "Set_FPSBoost",
-   Callback = function(Value)
-      isFPSBoost = Value
-      if Value then
-          pcall(function()
-              settings().Rendering.QualityLevel = Enum.QualityLevel.Level01
-              game:GetService("Lighting").GlobalShadows = false
-              game:GetService("Lighting").FogEnd = 9e9
-              game:GetService("Lighting").ShadowSoftness = 0
-              if sethiddenproperty then
-                  sethiddenproperty(game:GetService("Lighting"), "Technology", Enum.Technology.Compatibility)
-              end
-              for _, v in pairs(game:GetDescendants()) do
-                  if v:IsA("Part") or v:IsA("UnionOperation") or v:IsA("CornerWedgePart") or v:IsA("TrussPart") or v:IsA("MeshPart") then
-                      v.Material = Enum.Material.Plastic
-                      v.Reflectance = 0
-                  elseif v:IsA("Decal") or v:IsA("Texture") then
-                      v.Transparency = 1
-                  elseif v:IsA("ParticleEmitter") or v:IsA("Trail") then
-                      v.Lifetime = NumberRange.new(0)
-                  end
-              end
-          end)
-          Rayfield:Notify({Title="FPS Boost", Content="Optimizations Applied!", Duration=3})
-      end
    end,
 })
 
@@ -1148,6 +1195,7 @@ task.spawn(function()
                     local allMaxed = true
                     local targetPlace = nil
 
+                    local placeableUnits = {}
                     for _, eqUnit in ipairs(equippedUnits) do
                         local curP = 0
                         local maxP = 1
@@ -1162,9 +1210,28 @@ task.spawn(function()
                         
                         if curP < maxP then
                             allMaxed = false
-                            if money >= eqUnit.price and not targetPlace then
-                                targetPlace = eqUnit
+                            if money >= eqUnit.price then
+                                table.insert(placeableUnits, eqUnit)
                             end
+                        end
+                    end
+                    
+                    if #placeableUnits > 0 then
+                        for pIndex = 1, 6 do
+                            local pSlot = placePriorities[pIndex]
+                            if pSlot > 0 then
+                                for _, u in ipairs(placeableUnits) do
+                                    if u.slotNum == pSlot then
+                                        targetPlace = u
+                                        break
+                                    end
+                                end
+                            end
+                            if targetPlace then break end
+                        end
+                        
+                        if not targetPlace then
+                            targetPlace = placeableUnits[1]
                         end
                     end
                     
@@ -1301,20 +1368,12 @@ task.spawn(function()
     while true do
         if isFPSBoost then
             pcall(function()
-                if workspace:FindFirstChild("Terrain") then
-                    workspace.Terrain:Clear()
-                end
-                local monarch = workspace:FindFirstChild("Main") and workspace.Main:FindFirstChild("Castle Kingdom Monarch")
-                if monarch and monarch:FindFirstChild("Lighting") then
-                    monarch.Lighting:ClearAllChildren()
-                end
-                
                 if workspace:FindFirstChild("Ground") then
                     if workspace.Ground:FindFirstChild("enemyClient") then
                         workspace.Ground.enemyClient:ClearAllChildren()
                     end
-                    if workspace.Ground:FindFirstChild("enemyServer") then
-                        workspace.Ground.enemyServer:ClearAllChildren()
+                    if workspace.Ground:FindFirstChild("armyClient") then
+                        workspace.Ground.armyClient:ClearAllChildren()
                     end
                 end
             end)
