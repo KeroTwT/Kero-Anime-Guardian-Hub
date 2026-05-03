@@ -132,6 +132,7 @@ local allCardsList = {
     "Upon killing boss will gain +1 Guild Point",
     "Yen Boost",
     "+1 Max Placement"
+    "+1 Multiple Hit"
 }
 -- Per-card config: { [cardName] = {priority=0, limit=0} }
 local cardConfig = {}
