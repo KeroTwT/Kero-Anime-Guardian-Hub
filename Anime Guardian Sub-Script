@@ -1375,6 +1375,9 @@ task.spawn(function()
                     if workspace.Ground:FindFirstChild("armyClient") then
                         workspace.Ground.armyClient:ClearAllChildren()
                     end
+                    if workspace.Ground:FindFirstChild("unitClient") then
+                        workspace.Ground.unitClient:ClearAllChildren()
+                    end
                 end
             end)
         end
