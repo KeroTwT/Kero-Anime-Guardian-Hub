@@ -126,6 +126,11 @@ local placePriorities = {0, 0, 0, 0, 0, 0}
 local upgradePriorities = {0, 0, 0, 0, 0, 0}
 local isAutoMiddleMap = false
 
+local isPlaguebloomSpam = false
+local targetPBSMoney = 0
+local pbSpamCount = 1
+local isSpammingActive = false
+
 -- Card Select Variables
 local isAutoCardSelect = false
 local allCardsList = {
@@ -720,6 +725,32 @@ AutoTab:CreateSlider({
    end,
 })
 
+AutoTab:CreateSection("PlagueBloom Spam (MUST HAVE PLAGUEBLOOM SCEPTER)")
+AutoTab:CreateToggle({
+   Name = "Auto Spam Plaguebloom Place & Sell",
+   CurrentValue = false,
+   Flag = "Auto_PBS_Toggle",
+   Callback = function(Value)
+      isPlaguebloomSpam = Value
+   end,
+})
+AutoTab:CreateInput({
+   Name = "Spam If Money Below",
+   PlaceholderText = "1000",
+   Flag = "Auto_PBS_Money",
+   Callback = function(Text)
+      targetPBSMoney = tonumber(Text) or 0
+   end,
+})
+AutoTab:CreateInput({
+   Name = "Spam Amount",
+   PlaceholderText = "1",
+   Flag = "Auto_PBS_Amount",
+   Callback = function(Text)
+      pbSpamCount = tonumber(Text) or 1
+   end,
+})
+
 AutoTab:CreateSection("For Guild War")
 AutoTab:CreateToggle({
    Name = "Auto Place At The Middle Map",
@@ -793,6 +824,38 @@ SettingsTab:CreateToggle({
               descConn = nil
           end
       end
+   end,
+})
+
+SettingsTab:CreateButton({
+   Name = "Hide User",
+   Callback = function()
+        local player = game.Players.LocalPlayer
+        local character = player.Character
+
+        if character then
+            local head = character:FindFirstChild("Head")
+            local humanoidrootpart = character:FindFirstChild("HumanoidRootPart")
+            if head then
+                for i, v in pairs(head:GetChildren())do
+                    if v.ClassName == "BillboardGui" or v.ClassName == "Decal" then
+                        v:Destroy()
+                    end
+                end
+            end
+            if humanoidrootpart then
+                for i, v in pairs(humanoidrootpart:GetChildren())do
+                    if v.ClassName == "BillboardGui" or v.ClassName == "Decal" then
+                        v:Destroy()
+                    end
+                end
+            end
+            for _, obj in ipairs(character:GetChildren()) do
+                if obj:IsA("Accessory") or obj:IsA("Shirt") or obj:IsA("Pants") then
+                    obj:Destroy()
+                end
+            end
+        end
    end,
 })
 
@@ -1203,7 +1266,7 @@ end)
 
 task.spawn(function()
     while true do
-        if isAutoPlay then
+        if isAutoPlay and not isSpammingActive then
             local EventsFolder = ReplicatedStorage:FindFirstChild("PlayMode") 
                                  and ReplicatedStorage.PlayMode:FindFirstChild("Events")
             
@@ -1344,6 +1407,87 @@ task.spawn(function()
             end
         end
         task.wait(0.2)
+    end
+end)
+
+-- 9.5 Auto PlagueBloom Spam
+task.spawn(function()
+    while true do
+        if isPlaguebloomSpam then
+            local currentMoney = getMyMoney()
+            if currentMoney < targetPBSMoney then
+                local inv = LocalPlayer:FindFirstChild("ItemsInventory")
+                local pbItem = inv and inv:FindFirstChild("Plaguebloom Scepter")
+                local artVal = pbItem and pbItem:FindFirstChild("Artifacts")
+                local pbUUID = artVal and artVal.Value
+                
+                if pbUUID and pbUUID ~= "" then
+                    local eqUnits = getEquippedUnits()
+                    local targetUnit = nil
+                    for _, u in ipairs(eqUnits) do
+                        if u.uuid == pbUUID then
+                            targetUnit = u
+                            break
+                        end
+                    end
+                    
+                    if targetUnit and currentMoney >= targetUnit.price then
+                        isSpammingActive = true
+                        local EventsFolder = ReplicatedStorage:FindFirstChild("PlayMode") and ReplicatedStorage.PlayMode:FindFirstChild("Events")
+                        if EventsFolder then
+                            local spawnEvent = EventsFolder:FindFirstChild("spawnunit")
+                            local manageEvent = EventsFolder:FindFirstChild("ManageUnits")
+                            if spawnEvent and manageEvent then
+                                for i = 1, pbSpamCount do
+                                    if not isPlaguebloomSpam then break end
+                                    
+                                    local placeCFrame = getValidPlacementCFrame(targetWaypoint)
+                                    if placeCFrame then
+                                        local unitServer = workspace:FindFirstChild("Ground") and workspace.Ground:FindFirstChild("unitServer") and workspace.Ground.unitServer:FindFirstChild(LocalPlayer.Name .. " (UNIT)")
+                                        
+                                        local oldInstances = {}
+                                        if unitServer then
+                                            for _, obj in ipairs(unitServer:GetChildren()) do
+                                                oldInstances[obj] = true
+                                            end
+                                        end
+                                        
+                                        local argsSpawn = {
+                                            [1] = { [1] = targetUnit.name, [2] = placeCFrame, [3] = 0 },
+                                            [2] = pbUUID
+                                        }
+                                        pcall(function() spawnEvent:InvokeServer(unpack(argsSpawn)) end)
+                                        
+                                        local newInstanceName = nil
+                                        local t = 0
+                                        while t < 2 do
+                                            task.wait(0.1)
+                                            t = t + 0.1
+                                            if unitServer then
+                                                for _, obj in ipairs(unitServer:GetChildren()) do
+                                                    if not oldInstances[obj] and obj.Name ~= "PLACEMENTFOLDER" and string.find(string.lower(obj.Name), string.lower(targetUnit.name), 1, true) then
+                                                        newInstanceName = obj.Name
+                                                        break
+                                                    end
+                                                end
+                                            end
+                                            if newInstanceName then break end
+                                        end
+                                        
+                                        if newInstanceName then
+                                            pcall(function() manageEvent:InvokeServer("Selling", newInstanceName) end)
+                                        end
+                                        task.wait(0.1)
+                                    end
+                                end
+                            end
+                        end
+                        isSpammingActive = false
+                    end
+                end
+            end
+        end
+        task.wait(0.5)
     end
 end)
 
